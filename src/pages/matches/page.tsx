@@ -242,9 +242,62 @@ function getICReadinessScore(opportunity: any, notes: any[] = []) {
   return Math.round((ready / items.length) * 100);
 }
 
+function buildICReviewNote(opportunity: any, notes: any[] = []) {
+  const status = opportunity?.status || 'interested';
+  const readinessScore = getICReadinessScore(opportunity, notes);
+  const readinessItems = getICReadinessItems(opportunity, notes);
+  const missingItems = readinessItems.filter((item) => !item.ready).map((item) => item.label);
+  const recentNotes = Array.isArray(notes) ? notes.slice(0, 3) : [];
+
+  const recommendation =
+    readinessScore >= 80
+      ? 'Proceed to IC preparation.'
+      : readinessScore >= 60
+      ? 'Proceed after closing the missing readiness items.'
+      : 'Do not take to IC yet. Strengthen profile, diligence inputs and deal notes first.';
+
+  return [
+    `TD Venture IC Review Note`,
+    ``,
+    `Opportunity: ${opportunity?.opportunity_code || 'Opportunity'}`,
+    `Startup: ${opportunity?.startup_name || 'Protected Startup'}`,
+    `Investor: ${opportunity?.firm || 'Protected Investor'}`,
+    `Sector: ${opportunity?.sector || opportunity?.focus_sectors || 'Not disclosed'}`,
+    `Stage: ${opportunity?.stage || 'Not disclosed'}`,
+    `Capital Ask: ${opportunity?.ask || 'Not disclosed'}`,
+    `Current Stage: ${stages.find((s) => s.key === status)?.label || status}`,
+    ``,
+    `Investment View`,
+    `- Investment Confidence: ${opportunity?.investment_confidence ?? 0}%`,
+    `- AI Match Score: ${opportunity?.match_score || 0}%`,
+    `- Health Score: ${opportunity?.health_score ?? 0}`,
+    `- Risk: ${opportunity?.investment_risk || 'Medium'}`,
+    `- Founder Trust: ${opportunity?.founder_trust_score ?? 50}`,
+    `- Investor Trust: ${opportunity?.investor_trust_score ?? 50}`,
+    ``,
+    `IC Readiness`,
+    `- Readiness Score: ${readinessScore}%`,
+    `- Missing Items: ${missingItems.length ? missingItems.join(', ') : 'None'}`,
+    ``,
+    `Deal Desk Notes`,
+    ...(recentNotes.length
+      ? recentNotes.map((n: any) => `- ${String(n.note || '').replace(/\s+/g, ' ').trim()}`)
+      : ['- No internal notes captured yet.']),
+    ``,
+    `Recommended Next Action`,
+    `- ${getWorkspaceAction(opportunity)}`,
+    ``,
+    `IC Recommendation`,
+    `- ${recommendation}`,
+    ``,
+    `Prepared from TD Venture Investment Operating System.`,
+  ].join('\n');
+}
+
 export default function OpportunitiesPage() {
   const [selected, setSelected] = useState<any | null>(null);
   const [noteText, setNoteText] = useState('');
+  const [copiedAction, setCopiedAction] = useState<string | null>(null);
 
   const { data = [], isLoading, refetch } = useQuery({
     queryKey: ['opportunities'],
@@ -573,12 +626,18 @@ export default function OpportunitiesPage() {
                 </div>
                 <button
                   type="button"
-                  className="rounded-md border border-purple-500/50 px-3 py-2 text-sm text-purple-300 hover:bg-purple-500/10"
+                  className={
+                    copiedAction === 'memo'
+                      ? 'rounded-md bg-purple-400 px-3 py-2 text-sm font-semibold text-black transition'
+                      : 'rounded-md border border-purple-500/50 px-3 py-2 text-sm text-purple-300 transition hover:bg-purple-500/20 hover:text-white active:scale-95'
+                  }
                   onClick={() => {
                     navigator.clipboard?.writeText(buildInvestmentMemo(selected));
+                    setCopiedAction('memo');
+                    window.setTimeout(() => setCopiedAction(null), 1500);
                   }}
                 >
-                  Copy memo
+                  {copiedAction === 'memo' ? 'Copied ✓' : 'Copy memo'}
                 </button>
               </div>
 
@@ -650,6 +709,36 @@ export default function OpportunitiesPage() {
               );
             })()}
 
+            <div className="mb-5 border border-cyan-500/40 rounded-lg p-4 bg-black/40">
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
+                <div>
+                  <h3 className="font-semibold text-cyan-300">IC Review Note Generator</h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Copy a structured IC note using confidence, readiness, trust signals and internal notes.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className={
+                    copiedAction === 'ic'
+                      ? 'rounded-md bg-cyan-400 px-3 py-2 text-sm font-semibold text-black transition'
+                      : 'rounded-md border border-cyan-500/50 px-3 py-2 text-sm text-cyan-300 transition hover:bg-cyan-500/20 hover:text-white active:scale-95'
+                  }
+                  onClick={() => {
+                    navigator.clipboard?.writeText(buildICReviewNote(selected, selectedNotes));
+                    setCopiedAction('ic');
+                    window.setTimeout(() => setCopiedAction(null), 1500);
+                  }}
+                >
+                  {copiedAction === 'ic' ? 'Copied ✓' : 'Copy IC note'}
+                </button>
+              </div>
+
+              <div className="rounded-md border border-cyan-500/20 bg-black/50 p-3 text-sm text-gray-300 whitespace-pre-wrap max-h-72 overflow-y-auto">
+                {buildICReviewNote(selected, selectedNotes)}
+              </div>
+            </div>
+
             <div className="mb-5 border border-yellow-500/40 rounded-lg p-4 bg-black/40">
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
                 <div>
@@ -660,12 +749,18 @@ export default function OpportunitiesPage() {
                 </div>
                 <button
                   type="button"
-                  className="rounded-md border border-yellow-500/50 px-3 py-2 text-sm text-yellow-300 hover:bg-yellow-500/10"
+                  className={
+                    copiedAction === 'followup'
+                      ? 'rounded-md bg-yellow-400 px-3 py-2 text-sm font-semibold text-black transition'
+                      : 'rounded-md border border-yellow-500/50 px-3 py-2 text-sm text-yellow-300 transition hover:bg-yellow-500/20 hover:text-white active:scale-95'
+                  }
                   onClick={() => {
                     navigator.clipboard?.writeText(buildFollowUpMessage(selected));
+                    setCopiedAction('followup');
+                    window.setTimeout(() => setCopiedAction(null), 1500);
                   }}
                 >
-                  Copy follow-up
+                  {copiedAction === 'followup' ? 'Copied ✓' : 'Copy follow-up'}
                 </button>
               </div>
 
