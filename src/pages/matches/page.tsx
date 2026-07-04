@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { getDealFlow, updateDealFlowStatus, getOpportunityTimeline, getChiefOfStaffBrief } from '@/lib/api';
+import { getDealFlow, updateDealFlowStatus, getOpportunityTimeline, getChiefOfStaffBrief, getOpportunityNotes, addOpportunityNote } from '@/lib/api';
 
 const stages = [
   { key: 'interested', label: 'Interested' },
@@ -108,6 +108,7 @@ function buildInvestmentMemo(opportunity: any) {
 
 export default function OpportunitiesPage() {
   const [selected, setSelected] = useState<any | null>(null);
+  const [noteText, setNoteText] = useState('');
 
   const { data = [], isLoading, refetch } = useQuery({
     queryKey: ['opportunities'],
@@ -120,6 +121,16 @@ export default function OpportunitiesPage() {
     enabled: Boolean(selected?.id),
   });
 
+  const {
+    data: selectedNotes = [],
+    isLoading: isNotesLoading,
+    refetch: refetchNotes,
+  } = useQuery({
+    queryKey: ['opportunityNotes', selected?.id],
+    queryFn: () => getOpportunityNotes(selected.id),
+    enabled: Boolean(selected?.id),
+  });
+
   const { data: chiefBrief } = useQuery({
     queryKey: ['chiefOfStaffBrief'],
     queryFn: getChiefOfStaffBrief,
@@ -128,6 +139,14 @@ export default function OpportunitiesPage() {
   const updateStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => updateDealFlowStatus(id, status),
     onSuccess: () => refetch(),
+  });
+
+  const addNote = useMutation({
+    mutationFn: ({ id, note }: { id: string; note: string }) => addOpportunityNote(id, note),
+    onSuccess: () => {
+      setNoteText('');
+      refetchNotes();
+    },
   });
 
   const opportunities = Array.isArray(data) ? data : [];
@@ -443,6 +462,57 @@ export default function OpportunitiesPage() {
                   <div><span className="text-gray-500">Priority:</span> <span className="text-blue-300 font-semibold">{getPriority(selected)}</span></div>
                   <div><span className="text-gray-500">Next:</span> {getWorkspaceAction(selected)}</div>
                 </div>
+              </div>
+            </div>
+
+            <div className="mb-5 border border-lime-500/40 rounded-lg p-4 bg-black/40">
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
+                <div>
+                  <h3 className="font-semibold text-lime-300">Internal Deal Notes</h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Private deal desk memory for follow-ups, judgement calls and IC preparation.
+                  </p>
+                </div>
+                <div className="text-xs text-gray-500">
+                  {Array.isArray(selectedNotes) ? selectedNotes.length : 0} notes
+                </div>
+              </div>
+
+              <textarea
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                placeholder="Add an internal note for this opportunity..."
+                className="w-full min-h-[90px] rounded-md border border-lime-500/30 bg-black/60 p-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-lime-400"
+              />
+
+              <div className="mt-3 flex justify-end">
+                <button
+                  type="button"
+                  disabled={!noteText.trim() || addNote.isPending}
+                  className="rounded-md bg-lime-400 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
+                  onClick={() => addNote.mutate({ id: selected.id, note: noteText.trim() })}
+                >
+                  {addNote.isPending ? 'Saving...' : 'Add Note'}
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-3 max-h-64 overflow-y-auto pr-2">
+                {isNotesLoading ? (
+                  <p className="text-sm text-gray-500">Loading notes...</p>
+                ) : Array.isArray(selectedNotes) && selectedNotes.length > 0 ? (
+                  selectedNotes.map((n: any) => (
+                    <div key={n.id} className="rounded-md border border-lime-500/20 bg-black/50 p-3 text-sm">
+                      <div className="whitespace-pre-wrap text-gray-200">{n.note}</div>
+                      <div className="mt-2 text-[11px] text-gray-600">
+                        {n.created_by_email || 'Deal Desk'} · {n.created_at ? new Date(n.created_at).toLocaleString() : ''}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-md border border-dashed border-lime-500/20 p-3 text-sm text-gray-500">
+                    No internal notes yet. Add the first deal desk note.
+                  </div>
+                )}
               </div>
             </div>
 

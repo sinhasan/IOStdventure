@@ -360,3 +360,25 @@ export const getChiefOfStaffBrief = async () => {
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 };
+
+// ============================================================
+// Opportunity Notes
+// ============================================================
+
+export const getOpportunityNotes = async (opportunityId: string) => {
+  const res = await fetch(`${API_BASE}/opportunities/${opportunityId}/notes`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+};
+
+export const addOpportunityNote = async (opportunityId: string, note: string) => {
+  const res = await fetch(`${API_BASE}/opportunities/${opportunityId}/notes`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ note }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+};
