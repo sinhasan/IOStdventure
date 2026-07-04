@@ -27,3 +27,8 @@ patch_*.py
 Thumbs.db
 .vscode/
 .idea/
+
+# timestamped local backup files
+*.bak-*
+*.tsx.bak-*
+*.ts.bak-*
