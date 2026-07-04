@@ -79,6 +79,33 @@ function getDocumentReadiness(opportunity: any) {
   ];
 }
 
+function buildInvestmentMemo(opportunity: any) {
+  const status = opportunity?.status || 'interested';
+
+  return [
+    `TD Venture Investment Memo Snapshot`,
+    ``,
+    `Opportunity: ${opportunity?.opportunity_code || 'Opportunity'}`,
+    `Startup: ${opportunity?.startup_name || 'Protected Startup'}`,
+    `Investor: ${opportunity?.firm || 'Protected Investor'}`,
+    `Sector: ${opportunity?.sector || opportunity?.focus_sectors || 'Not disclosed'}`,
+    `Stage: ${opportunity?.stage || 'Not disclosed'}`,
+    `Capital Ask: ${opportunity?.ask || 'Not disclosed'}`,
+    `Current Status: ${stages.find((s) => s.key === status)?.label || status}`,
+    ``,
+    `Investment Confidence: ${opportunity?.investment_confidence ?? 0}%`,
+    `AI Match: ${opportunity?.match_score || 0}%`,
+    `Health Score: ${opportunity?.health_score ?? 0}`,
+    `Risk: ${opportunity?.investment_risk || 'Medium'}`,
+    `Founder Trust: ${opportunity?.founder_trust_score ?? 50}`,
+    `Investor Trust: ${opportunity?.investor_trust_score ?? 50}`,
+    ``,
+    `Next Best Action: ${getWorkspaceAction(opportunity)}`,
+    ``,
+    `Prepared from TD Venture Investment Operating System.`,
+  ].join('\n');
+}
+
 export default function OpportunitiesPage() {
   const [selected, setSelected] = useState<any | null>(null);
 
@@ -374,6 +401,44 @@ export default function OpportunitiesPage() {
                       Prepare IC review note
                     </button>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-5 border border-purple-500/40 rounded-lg p-4 bg-black/40">
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
+                <div>
+                  <h3 className="font-semibold text-purple-300">Investment Memo Snapshot</h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    One-click summary for IC discussion, investor follow-up, or founder update.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="rounded-md border border-purple-500/50 px-3 py-2 text-sm text-purple-300 hover:bg-purple-500/10"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(buildInvestmentMemo(selected));
+                  }}
+                >
+                  Copy memo
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div className="space-y-2">
+                  <div><span className="text-gray-500">Startup:</span> {selected.startup_name || 'Protected Startup'}</div>
+                  <div><span className="text-gray-500">Investor:</span> {selected.firm || 'Protected Investor'}</div>
+                  <div><span className="text-gray-500">Sector:</span> {selected.sector || selected.focus_sectors || 'Not disclosed'}</div>
+                  <div><span className="text-gray-500">Stage:</span> {selected.stage || 'Not disclosed'}</div>
+                  <div><span className="text-gray-500">Capital Ask:</span> {selected.ask || 'Not disclosed'}</div>
+                </div>
+
+                <div className="space-y-2">
+                  <div><span className="text-gray-500">Confidence:</span> <span className="text-lime-300 font-semibold">{selected.investment_confidence ?? 0}%</span></div>
+                  <div><span className="text-gray-500">Risk:</span> <span className="text-yellow-300 font-semibold">{selected.investment_risk || 'Medium'}</span></div>
+                  <div><span className="text-gray-500">Health:</span> <span className="text-lime-300 font-semibold">{selected.health_score ?? 0}</span></div>
+                  <div><span className="text-gray-500">Priority:</span> <span className="text-blue-300 font-semibold">{getPriority(selected)}</span></div>
+                  <div><span className="text-gray-500">Next:</span> {getWorkspaceAction(selected)}</div>
                 </div>
               </div>
             </div>
