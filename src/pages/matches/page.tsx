@@ -186,6 +186,62 @@ function buildFollowUpMessage(opportunity: any) {
   ].join('\n');
 }
 
+function getICReadinessItems(opportunity: any, notes: any[] = []) {
+  const confidence = Number(opportunity?.investment_confidence || 0);
+  const matchScore = Number(opportunity?.match_score || 0);
+  const founderTrust = Number(opportunity?.founder_trust_score ?? 50);
+  const investorTrust = Number(opportunity?.investor_trust_score ?? 50);
+
+  return [
+    {
+      label: 'Startup profile identified',
+      ready: Boolean(opportunity?.startup_name),
+      detail: opportunity?.startup_name || 'Startup name not available',
+    },
+    {
+      label: 'Sector and stage available',
+      ready: Boolean(opportunity?.sector || opportunity?.focus_sectors) && Boolean(opportunity?.stage),
+      detail: `${opportunity?.sector || opportunity?.focus_sectors || 'Sector missing'} · ${opportunity?.stage || 'Stage missing'}`,
+    },
+    {
+      label: 'Capital ask visible',
+      ready: Boolean(opportunity?.ask),
+      detail: opportunity?.ask || 'Capital ask not available',
+    },
+    {
+      label: 'AI match quality acceptable',
+      ready: matchScore >= 70,
+      detail: `${matchScore || 0}% AI match score`,
+    },
+    {
+      label: 'Investment confidence calculated',
+      ready: confidence >= 70,
+      detail: `${confidence || 0}% confidence · ${opportunity?.investment_risk || 'Medium'} risk`,
+    },
+    {
+      label: 'Trust signals acceptable',
+      ready: founderTrust >= 50 && investorTrust >= 50,
+      detail: `Founder ${founderTrust} · Investor ${investorTrust}`,
+    },
+    {
+      label: 'Internal note captured',
+      ready: Array.isArray(notes) && notes.length > 0,
+      detail: Array.isArray(notes) && notes.length > 0 ? `${notes.length} internal note(s)` : 'No deal desk note yet',
+    },
+    {
+      label: 'Next action clear',
+      ready: Boolean(getWorkspaceAction(opportunity)),
+      detail: getWorkspaceAction(opportunity),
+    },
+  ];
+}
+
+function getICReadinessScore(opportunity: any, notes: any[] = []) {
+  const items = getICReadinessItems(opportunity, notes);
+  const ready = items.filter((item) => item.ready).length;
+  return Math.round((ready / items.length) * 100);
+}
+
 export default function OpportunitiesPage() {
   const [selected, setSelected] = useState<any | null>(null);
   const [noteText, setNoteText] = useState('');
@@ -544,6 +600,55 @@ export default function OpportunitiesPage() {
                 </div>
               </div>
             </div>
+
+            {(() => {
+              const icItems = getICReadinessItems(selected, selectedNotes);
+              const icScore = getICReadinessScore(selected, selectedNotes);
+
+              return (
+                <div className="mb-5 border border-purple-500/40 rounded-lg p-4 bg-black/40">
+                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
+                    <div>
+                      <h3 className="font-semibold text-purple-300">IC Readiness Checklist</h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Deal desk readiness view before taking this opportunity to investment review.
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-bold text-purple-300">{icScore}%</div>
+                      <div className="text-xs text-gray-500">IC readiness</div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {icItems.map((item: any) => (
+                      <div
+                        key={item.label}
+                        className="rounded-md border border-purple-500/20 bg-black/50 p-3"
+                      >
+                        <div className="flex items-start gap-2">
+                          <div className={item.ready ? 'text-lime-300' : 'text-yellow-300'}>
+                            {item.ready ? '✓' : '!'}
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-gray-200">{item.label}</div>
+                            <div className="text-xs text-gray-500 mt-1">{item.detail}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 rounded-md border border-purple-500/20 bg-purple-500/5 p-3 text-xs text-gray-400">
+                    {icScore >= 80
+                      ? 'Recommendation: Ready for IC preparation.'
+                      : icScore >= 60
+                      ? 'Recommendation: Almost ready. Close the missing items before IC.'
+                      : 'Recommendation: Not ready for IC. Strengthen profile, notes and diligence inputs first.'}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="mb-5 border border-yellow-500/40 rounded-lg p-4 bg-black/40">
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
