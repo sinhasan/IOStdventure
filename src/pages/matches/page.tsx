@@ -296,9 +296,9 @@ export default function OpportunitiesPage() {
       )}
 
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="w-full max-w-3xl border border-lime-500/70 bg-black rounded-xl p-6 shadow-[0_0_35px_rgba(163,255,18,0.25)]">
-            <div className="flex justify-between items-start mb-5">
+        <div className="fixed inset-0 z-50 bg-black/85 p-4 overflow-y-auto">
+          <div className="mx-auto my-4 w-full max-w-5xl border border-lime-500/70 bg-black rounded-xl p-6 shadow-[0_0_35px_rgba(163,255,18,0.25)]">
+            <div className="sticky top-0 z-20 -mx-6 -mt-6 mb-5 flex justify-between items-start border-b border-lime-500/30 bg-black/95 px-6 py-4 backdrop-blur">
               <div>
                 <div className="text-xs uppercase tracking-[0.35em] text-lime-300 mb-2">
                   Opportunity Workspace
@@ -307,8 +307,11 @@ export default function OpportunitiesPage() {
                   {selected.opportunity_code || 'Opportunity'}
                 </h2>
               </div>
-              <button className="text-gray-400 hover:text-white" onClick={() => setSelected(null)}>
-                Close
+              <button
+                className="rounded-md border border-lime-500/50 bg-black px-4 py-2 text-sm font-semibold text-lime-300 hover:bg-lime-400 hover:text-black transition"
+                onClick={() => setSelected(null)}
+              >
+                ← Back to Matches
               </button>
             </div>
 
