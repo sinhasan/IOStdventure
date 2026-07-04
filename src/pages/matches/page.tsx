@@ -106,6 +106,86 @@ function buildInvestmentMemo(opportunity: any) {
   ].join('\n');
 }
 
+
+function buildFollowUpMessage(opportunity: any) {
+  const status = opportunity?.status || 'interested';
+  const startup = opportunity?.startup_name || 'the startup';
+  const investor = opportunity?.firm || 'the investor';
+  const code = opportunity?.opportunity_code || 'this opportunity';
+  const nextAction = getWorkspaceAction(opportunity);
+
+  if (status === 'payment_pending' || status === 'interested') {
+    return [
+      `Hi,`,
+      ``,
+      `Quick update on ${code}: ${startup} is currently at the ${opportunity?.stage || 'current'} stage in ${opportunity?.sector || opportunity?.focus_sectors || 'the relevant sector'}.`,
+      ``,
+      `The next step is to complete the payment / reveal process so that the opportunity can move forward in the TD Venture deal workflow.`,
+      ``,
+      `Next action: ${nextAction}`,
+      ``,
+      `Regards,`,
+      `TD Venture Deal Desk`,
+    ].join('\n');
+  }
+
+  if (status === 'investor_notified' || status === 'waiting_response') {
+    return [
+      `Hi,`,
+      ``,
+      `Following up on ${code} between ${startup} and ${investor}.`,
+      ``,
+      `The opportunity has an Investment Confidence of ${opportunity?.investment_confidence ?? 0}% and is currently awaiting response / next movement.`,
+      ``,
+      `Next action: ${nextAction}`,
+      ``,
+      `Regards,`,
+      `TD Venture Deal Desk`,
+    ].join('\n');
+  }
+
+  if (status === 'accepted' || status === 'meeting_scheduled') {
+    return [
+      `Hi,`,
+      ``,
+      `This is a quick coordination note for ${code}.`,
+      ``,
+      `${startup} and ${investor} are ready for the next meeting / diligence step. Please confirm availability and any documents required before the call.`,
+      ``,
+      `Next action: ${nextAction}`,
+      ``,
+      `Regards,`,
+      `TD Venture Deal Desk`,
+    ].join('\n');
+  }
+
+  if (status === 'due_diligence') {
+    return [
+      `Hi,`,
+      ``,
+      `${code} is now in due diligence.`,
+      ``,
+      `Please share the required documents, including pitch deck, financial model, traction proof, cap table and any investor memo inputs.`,
+      ``,
+      `Next action: ${nextAction}`,
+      ``,
+      `Regards,`,
+      `TD Venture Deal Desk`,
+    ].join('\n');
+  }
+
+  return [
+    `Hi,`,
+    ``,
+    `Quick update on ${code}: ${startup} is currently marked as ${stages.find((s) => s.key === status)?.label || status}.`,
+    ``,
+    `Next action: ${nextAction}`,
+    ``,
+    `Regards,`,
+    `TD Venture Deal Desk`,
+  ].join('\n');
+}
+
 export default function OpportunitiesPage() {
   const [selected, setSelected] = useState<any | null>(null);
   const [noteText, setNoteText] = useState('');
@@ -462,6 +542,30 @@ export default function OpportunitiesPage() {
                   <div><span className="text-gray-500">Priority:</span> <span className="text-blue-300 font-semibold">{getPriority(selected)}</span></div>
                   <div><span className="text-gray-500">Next:</span> {getWorkspaceAction(selected)}</div>
                 </div>
+              </div>
+            </div>
+
+            <div className="mb-5 border border-yellow-500/40 rounded-lg p-4 bg-black/40">
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
+                <div>
+                  <h3 className="font-semibold text-yellow-300">Follow-up Composer</h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Copy a stage-aware follow-up message for email, WhatsApp or investor coordination.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="rounded-md border border-yellow-500/50 px-3 py-2 text-sm text-yellow-300 hover:bg-yellow-500/10"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(buildFollowUpMessage(selected));
+                  }}
+                >
+                  Copy follow-up
+                </button>
+              </div>
+
+              <div className="rounded-md border border-yellow-500/20 bg-black/50 p-3 text-sm text-gray-300 whitespace-pre-wrap max-h-56 overflow-y-auto">
+                {buildFollowUpMessage(selected)}
               </div>
             </div>
 
