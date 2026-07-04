@@ -294,6 +294,65 @@ function buildICReviewNote(opportunity: any, notes: any[] = []) {
   ].join('\n');
 }
 
+function buildDecisionActionNote(opportunity: any, action: string, notes: any[] = []) {
+  const code = opportunity?.opportunity_code || 'this opportunity';
+  const startup = opportunity?.startup_name || 'the startup';
+  const investor = opportunity?.firm || 'the investor';
+  const readiness = getICReadinessScore(opportunity, notes);
+  const nextAction = getWorkspaceAction(opportunity);
+
+  if (action === 'followup_founder') {
+    return [
+      `Decision Action Logged: Follow up with founder`,
+      ``,
+      `Opportunity: ${code}`,
+      `Startup: ${startup}`,
+      `Investor: ${investor}`,
+      ``,
+      `Deal Desk should follow up with the founder on the current opportunity status and confirm next required movement.`,
+      `Suggested next action: ${nextAction}`,
+      ``,
+      `Logged from TD Venture IOS Quick Actions.`,
+    ].join('\n');
+  }
+
+  if (action === 'request_documents') {
+    return [
+      `Decision Action Logged: Request missing documents`,
+      ``,
+      `Opportunity: ${code}`,
+      `Startup: ${startup}`,
+      `Investor: ${investor}`,
+      ``,
+      `Deal Desk should request missing diligence materials from the founder.`,
+      `Suggested documents: pitch deck, financial model, traction proof, cap table, company profile and investor memo inputs.`,
+      `Suggested next action: ${nextAction}`,
+      ``,
+      `Logged from TD Venture IOS Quick Actions.`,
+    ].join('\n');
+  }
+
+  if (action === 'prepare_ic') {
+    return [
+      `Decision Action Logged: Prepare IC review note`,
+      ``,
+      `Opportunity: ${code}`,
+      `Startup: ${startup}`,
+      `Investor: ${investor}`,
+      ``,
+      `Deal Desk should prepare this opportunity for IC review.`,
+      `Current IC readiness: ${readiness}%`,
+      `Investment confidence: ${opportunity?.investment_confidence ?? 0}%`,
+      `Risk: ${opportunity?.investment_risk || 'Medium'}`,
+      `Suggested next action: ${nextAction}`,
+      ``,
+      `Logged from TD Venture IOS Quick Actions.`,
+    ].join('\n');
+  }
+
+  return `Decision Action Logged for ${code}: ${nextAction}`;
+}
+
 export default function OpportunitiesPage() {
   const [selected, setSelected] = useState<any | null>(null);
   const [noteText, setNoteText] = useState('');
@@ -602,14 +661,82 @@ export default function OpportunitiesPage() {
                 <div className="border border-lime-500/30 rounded-md p-3">
                   <div className="text-sm font-semibold text-lime-300 mb-3">Quick Actions</div>
                   <div className="grid grid-cols-1 gap-2 text-sm">
-                    <button type="button" className="rounded-md border border-lime-500/50 px-3 py-2 text-left text-lime-300">
-                      Follow up with founder
+                    <button
+                      type="button"
+                      disabled={addNote.isPending}
+                      className={
+                        copiedAction === 'action-founder'
+                          ? 'rounded-md bg-lime-400 px-3 py-2 text-left font-semibold text-black transition'
+                          : 'rounded-md border border-lime-500/50 px-3 py-2 text-left text-lime-300 transition hover:bg-lime-500/20 hover:text-white active:scale-[0.99] disabled:opacity-50'
+                      }
+                      onClick={() => {
+                        addNote.mutate(
+                          {
+                            id: selected.id,
+                            note: buildDecisionActionNote(selected, 'followup_founder', selectedNotes),
+                          },
+                          {
+                            onSuccess: () => {
+                              setCopiedAction('action-founder');
+                              window.setTimeout(() => setCopiedAction(null), 1500);
+                            },
+                          }
+                        );
+                      }}
+                    >
+                      {copiedAction === 'action-founder' ? 'Action logged ✓' : 'Follow up with founder'}
                     </button>
-                    <button type="button" className="rounded-md border border-yellow-500/50 px-3 py-2 text-left text-yellow-300">
-                      Request missing documents
+
+                    <button
+                      type="button"
+                      disabled={addNote.isPending}
+                      className={
+                        copiedAction === 'action-docs'
+                          ? 'rounded-md bg-yellow-400 px-3 py-2 text-left font-semibold text-black transition'
+                          : 'rounded-md border border-yellow-500/50 px-3 py-2 text-left text-yellow-300 transition hover:bg-yellow-500/20 hover:text-white active:scale-[0.99] disabled:opacity-50'
+                      }
+                      onClick={() => {
+                        addNote.mutate(
+                          {
+                            id: selected.id,
+                            note: buildDecisionActionNote(selected, 'request_documents', selectedNotes),
+                          },
+                          {
+                            onSuccess: () => {
+                              setCopiedAction('action-docs');
+                              window.setTimeout(() => setCopiedAction(null), 1500);
+                            },
+                          }
+                        );
+                      }}
+                    >
+                      {copiedAction === 'action-docs' ? 'Action logged ✓' : 'Request missing documents'}
                     </button>
-                    <button type="button" className="rounded-md border border-blue-500/50 px-3 py-2 text-left text-blue-300">
-                      Prepare IC review note
+
+                    <button
+                      type="button"
+                      disabled={addNote.isPending}
+                      className={
+                        copiedAction === 'action-ic'
+                          ? 'rounded-md bg-blue-400 px-3 py-2 text-left font-semibold text-black transition'
+                          : 'rounded-md border border-blue-500/50 px-3 py-2 text-left text-blue-300 transition hover:bg-blue-500/20 hover:text-white active:scale-[0.99] disabled:opacity-50'
+                      }
+                      onClick={() => {
+                        addNote.mutate(
+                          {
+                            id: selected.id,
+                            note: buildDecisionActionNote(selected, 'prepare_ic', selectedNotes),
+                          },
+                          {
+                            onSuccess: () => {
+                              setCopiedAction('action-ic');
+                              window.setTimeout(() => setCopiedAction(null), 1500);
+                            },
+                          }
+                        );
+                      }}
+                    >
+                      {copiedAction === 'action-ic' ? 'Action logged ✓' : 'Prepare IC review note'}
                     </button>
                   </div>
                 </div>
