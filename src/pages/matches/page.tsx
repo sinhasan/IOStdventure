@@ -353,6 +353,52 @@ function buildDecisionActionNote(opportunity: any, action: string, notes: any[] 
   return `Decision Action Logged for ${code}: ${nextAction}`;
 }
 
+function getFounderBrief(opportunity: any) {
+  const confidence = Number(opportunity?.investment_confidence || 0);
+  const founderTrust = Number(opportunity?.founder_trust_score ?? 50);
+  const docs = getDocumentReadiness(opportunity);
+  const readyDocs = docs.filter((doc) => doc.ready).length;
+
+  let positioning = 'Qualify founder readiness before investor escalation.';
+  if (confidence >= 80 && founderTrust >= 70) {
+    positioning = 'Strong founder-side signal. Suitable for investor-facing movement.';
+  } else if (confidence >= 65) {
+    positioning = 'Promising founder-side profile. Strengthen documents before IC.';
+  }
+
+  return {
+    startup: opportunity?.startup_name || 'Protected Startup',
+    sector: opportunity?.sector || opportunity?.focus_sectors || 'Not disclosed',
+    stage: opportunity?.stage || 'Not disclosed',
+    ask: opportunity?.ask || 'Not disclosed',
+    trust: founderTrust,
+    docsReady: `${readyDocs}/${docs.length}`,
+    positioning,
+  };
+}
+
+function getInvestorBrief(opportunity: any) {
+  const investorTrust = Number(opportunity?.investor_trust_score ?? 50);
+  const matchScore = Number(opportunity?.match_score || 0);
+  const confidence = Number(opportunity?.investment_confidence || 0);
+
+  let positioning = 'Use a cautious intro and validate investor interest.';
+  if (matchScore >= 85 && confidence >= 80) {
+    positioning = 'Lead with strategic fit, readiness and clear next step.';
+  } else if (matchScore >= 70) {
+    positioning = 'Position around sector fit and founder preparedness.';
+  }
+
+  return {
+    firm: opportunity?.firm || 'Protected Investor',
+    focus: opportunity?.focus_sectors || opportunity?.sector || 'Not disclosed',
+    city: opportunity?.investor_city || 'Location not disclosed',
+    trust: investorTrust,
+    matchScore,
+    positioning,
+  };
+}
+
 export default function OpportunitiesPage() {
   const [selected, setSelected] = useState<any | null>(null);
   const [noteText, setNoteText] = useState('');
@@ -880,6 +926,96 @@ export default function OpportunitiesPage() {
                 </div>
               </div>
             </div>
+
+            {(() => {
+              const founderBrief = getFounderBrief(selected);
+              const investorBrief = getInvestorBrief(selected);
+
+              return (
+                <div className="mb-5 border border-emerald-500/40 rounded-lg p-4 bg-black/40">
+                  <div className="mb-4">
+                    <h3 className="font-semibold text-emerald-300">Founder / Investor Brief Cards</h3>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Two-sided operating view before follow-up, IC preparation or investor communication.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="rounded-lg border border-emerald-500/30 bg-black/50 p-4">
+                      <div className="mb-3 flex items-center justify-between">
+                        <div>
+                          <div className="text-xs uppercase tracking-[0.25em] text-emerald-300">Founder Brief</div>
+                          <div className="mt-1 text-lg font-semibold text-white">{founderBrief.startup}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-emerald-300">{founderBrief.trust}</div>
+                          <div className="text-xs text-gray-500">Trust</div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <div className="text-xs text-gray-500">Sector</div>
+                          <div className="text-gray-200">{founderBrief.sector}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-500">Stage</div>
+                          <div className="text-gray-200">{founderBrief.stage}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-500">Capital Ask</div>
+                          <div className="text-gray-200">{founderBrief.ask}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-500">Docs Ready</div>
+                          <div className="text-gray-200">{founderBrief.docsReady}</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 rounded-md border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-gray-400">
+                        {founderBrief.positioning}
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-sky-500/30 bg-black/50 p-4">
+                      <div className="mb-3 flex items-center justify-between">
+                        <div>
+                          <div className="text-xs uppercase tracking-[0.25em] text-sky-300">Investor Brief</div>
+                          <div className="mt-1 text-lg font-semibold text-white">{investorBrief.firm}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-sky-300">{investorBrief.matchScore}%</div>
+                          <div className="text-xs text-gray-500">Match</div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <div className="text-xs text-gray-500">Focus</div>
+                          <div className="text-gray-200">{investorBrief.focus}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-500">Location</div>
+                          <div className="text-gray-200">{investorBrief.city}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-500">Investor Trust</div>
+                          <div className="text-gray-200">{investorBrief.trust}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-500">Risk</div>
+                          <div className="text-gray-200">{selected.investment_risk || 'Medium'}</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 rounded-md border border-sky-500/20 bg-sky-500/5 p-3 text-xs text-gray-400">
+                        {investorBrief.positioning}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="mb-5 border border-purple-500/40 rounded-lg p-4 bg-black/40">
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
