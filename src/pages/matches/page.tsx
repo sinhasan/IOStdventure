@@ -406,6 +406,45 @@ export default function OpportunitiesPage() {
     }));
   }, [opportunities]);
 
+  const actionQueue = useMemo(() => {
+    const sorted = [...opportunities].sort((a: any, b: any) => {
+      const aConfidence = Number(a?.investment_confidence || 0);
+      const bConfidence = Number(b?.investment_confidence || 0);
+      const aHealth = Number(a?.health_score || 0);
+      const bHealth = Number(b?.health_score || 0);
+      return bConfidence + bHealth - (aConfidence + aHealth);
+    });
+
+    const needsDocuments = sorted.filter((o: any) =>
+      getDocumentReadiness(o).some((doc) => !doc.ready)
+    );
+
+    const needsFollowup = sorted.filter((o: any) =>
+      ['interested', 'payment_pending', 'payment_complete', 'investor_notified', 'waiting_response'].includes(o.status || 'interested')
+    );
+
+    const readyForIC = sorted.filter((o: any) => {
+      const confidence = Number(o?.investment_confidence || 0);
+      const docsReady = getDocumentReadiness(o).filter((doc) => doc.ready).length;
+      const status = o.status || 'interested';
+
+      return (
+        confidence >= 75 &&
+        docsReady >= 3 &&
+        ['accepted', 'meeting_scheduled', 'due_diligence', 'funded', 'interested'].includes(status)
+      );
+    });
+
+    const highPriority = sorted.filter((o: any) => getPriority(o) === 'High');
+
+    return {
+      readyForIC: readyForIC.slice(0, 4),
+      needsDocuments: needsDocuments.slice(0, 4),
+      needsFollowup: needsFollowup.slice(0, 4),
+      highPriority: highPriority.slice(0, 4),
+    };
+  }, [opportunities]);
+
   return (
     <div className="p-6 text-white">
       <div className="mb-6 border border-lime-500/60 bg-black/75 rounded-lg p-5">
@@ -434,6 +473,105 @@ export default function OpportunitiesPage() {
           </div>
         ))}
       </div>
+
+      {opportunities.length > 0 && (
+        <div className="mb-6 rounded-xl border border-cyan-500/40 bg-black/75 p-5 shadow-[0_0_30px_rgba(34,211,238,0.08)]">
+          <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div>
+              <div className="text-xs uppercase tracking-[0.35em] text-cyan-300">
+                Workspace 2.7
+              </div>
+              <h2 className="mt-1 text-xl font-semibold">Deal Desk Action Queue</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                Prioritised operating queue for IC readiness, documents, follow-ups and high-priority opportunities.
+              </p>
+            </div>
+            <div className="text-xs text-gray-500">
+              Click any item to open its workspace.
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {[
+              {
+                title: 'Ready for IC',
+                count: actionQueue.readyForIC.length,
+                items: actionQueue.readyForIC,
+                border: 'border-purple-500/40',
+                text: 'text-purple-300',
+                empty: 'No IC-ready deals yet',
+              },
+              {
+                title: 'Needs Documents',
+                count: actionQueue.needsDocuments.length,
+                items: actionQueue.needsDocuments,
+                border: 'border-yellow-500/40',
+                text: 'text-yellow-300',
+                empty: 'No document gaps',
+              },
+              {
+                title: 'Needs Follow-up',
+                count: actionQueue.needsFollowup.length,
+                items: actionQueue.needsFollowup,
+                border: 'border-lime-500/40',
+                text: 'text-lime-300',
+                empty: 'No follow-ups due',
+              },
+              {
+                title: 'High Priority',
+                count: actionQueue.highPriority.length,
+                items: actionQueue.highPriority,
+                border: 'border-blue-500/40',
+                text: 'text-blue-300',
+                empty: 'No high-priority deals',
+              },
+            ].map((bucket: any) => (
+              <div key={bucket.title} className={`rounded-lg border ${bucket.border} bg-black/50 p-4`}>
+                <div className="mb-3 flex items-center justify-between">
+                  <div className={`text-sm font-semibold ${bucket.text}`}>{bucket.title}</div>
+                  <div className={`rounded-full border ${bucket.border} px-2 py-0.5 text-xs ${bucket.text}`}>
+                    {bucket.count}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {bucket.items.length > 0 ? (
+                    bucket.items.map((o: any) => (
+                      <button
+                        key={`${bucket.title}-${o.id}`}
+                        type="button"
+                        onClick={() => setSelected(o)}
+                        className="w-full rounded-md border border-white/10 bg-white/[0.03] p-3 text-left transition hover:border-lime-500/40 hover:bg-lime-500/10 active:scale-[0.99]"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-medium text-white">
+                              {o.startup_name || 'Protected Startup'}
+                            </div>
+                            <div className="mt-1 text-xs text-gray-500">
+                              {o.opportunity_code || 'Opportunity'} · {o.stage || 'Stage N/A'}
+                            </div>
+                          </div>
+                          <div className={`text-xs font-semibold ${bucket.text}`}>
+                            {o.investment_confidence ?? 0}%
+                          </div>
+                        </div>
+                        <div className="mt-2 line-clamp-2 text-xs text-gray-500">
+                          {getWorkspaceAction(o)}
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="rounded-md border border-dashed border-white/10 p-3 text-xs text-gray-600">
+                      {bucket.empty}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <p className="text-lime-300">Loading Opportunities...</p>
