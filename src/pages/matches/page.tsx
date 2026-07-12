@@ -441,6 +441,150 @@ function buildDecisionActionNote(opportunity: any, action: string, notes: any[] 
   return `Decision Action Logged for ${code}: ${nextAction}`;
 }
 
+
+function clampOperatingScore(value: number) {
+  return Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
+}
+
+function getOpportunityStatusSignal(status: string) {
+  const normalized = status || 'interested';
+
+  if (normalized === 'funded') return 100;
+  if (normalized === 'due_diligence') return 86;
+  if (normalized === 'meeting_scheduled') return 78;
+  if (normalized === 'accepted') return 72;
+  if (normalized === 'response_received') return 68;
+  if (normalized === 'notified') return 62;
+  if (normalized === 'payment_complete') return 58;
+  if (normalized === 'interested') return 52;
+  if (normalized === 'payment_pending') return 45;
+  if (normalized === 'rejected') return 20;
+
+  return 55;
+}
+
+function getOpportunityOperatingScore(opportunity: any, notes: any[] = []) {
+  const confidence = Number(opportunity?.investment_confidence || 0);
+  const health = Number(opportunity?.health_score || 0);
+  const founderTrust = Number(opportunity?.founder_trust_score ?? 50);
+  const investorTrust = Number(opportunity?.investor_trust_score ?? 50);
+  const icReadiness = getICReadinessScore(opportunity, notes);
+  const notesSignal = Array.isArray(notes) && notes.length > 0 ? 100 : 35;
+  const statusSignal = getOpportunityStatusSignal(opportunity?.status || 'interested');
+
+  return clampOperatingScore(
+    confidence * 0.24 +
+      health * 0.18 +
+      founderTrust * 0.14 +
+      investorTrust * 0.14 +
+      icReadiness * 0.18 +
+      notesSignal * 0.06 +
+      statusSignal * 0.06
+  );
+}
+
+function getOpportunityOperatingGrade(score: number) {
+  if (score >= 85) return 'Ready to accelerate';
+  if (score >= 70) return 'Healthy opportunity';
+  if (score >= 55) return 'Needs movement';
+  if (score >= 40) return 'At risk';
+  return 'Dormant / weak signal';
+}
+
+function getOpportunityOperatingBreakdown(opportunity: any, notes: any[] = []) {
+  const confidence = Number(opportunity?.investment_confidence || 0);
+  const health = Number(opportunity?.health_score || 0);
+  const founderTrust = Number(opportunity?.founder_trust_score ?? 50);
+  const investorTrust = Number(opportunity?.investor_trust_score ?? 50);
+  const icReadiness = getICReadinessScore(opportunity, notes);
+  const notesSignal = Array.isArray(notes) && notes.length > 0 ? 100 : 35;
+  const statusSignal = getOpportunityStatusSignal(opportunity?.status || 'interested');
+
+  return [
+    {
+      label: 'Investment Confidence',
+      value: confidence,
+      weight: '24%',
+      ready: confidence >= 70,
+      detail: 'AI confidence from match, trust and deal signals.',
+    },
+    {
+      label: 'Health Score',
+      value: health,
+      weight: '18%',
+      ready: health >= 70,
+      detail: 'Operational health of the current opportunity.',
+    },
+    {
+      label: 'Founder Trust',
+      value: founderTrust,
+      weight: '14%',
+      ready: founderTrust >= 60,
+      detail: 'Founder-side profile and credibility signal.',
+    },
+    {
+      label: 'Investor Trust',
+      value: investorTrust,
+      weight: '14%',
+      ready: investorTrust >= 60,
+      detail: 'Investor-side quality and fit signal.',
+    },
+    {
+      label: 'IC Readiness',
+      value: icReadiness,
+      weight: '18%',
+      ready: icReadiness >= 70,
+      detail: 'Readiness to move into investment review.',
+    },
+    {
+      label: 'Deal Notes',
+      value: notesSignal,
+      weight: '6%',
+      ready: notesSignal >= 80,
+      detail: Array.isArray(notes) && notes.length > 0 ? `${notes.length} internal note(s) present.` : 'No internal deal notes yet.',
+    },
+    {
+      label: 'Workflow Status',
+      value: statusSignal,
+      weight: '6%',
+      ready: statusSignal >= 60,
+      detail: `Current status: ${opportunity?.status || 'interested'}.`,
+    },
+  ];
+}
+
+function buildOperatingScoreNote(opportunity: any, notes: any[] = []) {
+  const score = getOpportunityOperatingScore(opportunity, notes);
+  const grade = getOpportunityOperatingGrade(score);
+  const breakdown = getOpportunityOperatingBreakdown(opportunity, notes);
+  const code = opportunity?.opportunity_code || 'Opportunity';
+
+  return [
+    'Workspace 3.0 Operating Score',
+    '',
+    `Opportunity: ${code}`,
+    `Startup: ${opportunity?.startup_name || 'Protected Startup'}`,
+    `Investor: ${opportunity?.firm || 'Protected Investor'}`,
+    `Operating Score: ${score}/100`,
+    `Grade: ${grade}`,
+    `Priority: ${getPriority(opportunity)}`,
+    `Next Best Action: ${getWorkspaceAction(opportunity)}`,
+    '',
+    'Score Breakdown:',
+    ...breakdown.map((item) => `- ${item.label}: ${item.value}/100 · Weight ${item.weight} · ${item.ready ? 'OK' : 'Needs attention'}`),
+    '',
+    'Chief-of-Staff Instruction:',
+    score >= 85
+      ? '- Accelerate this opportunity. Prepare meeting / diligence / IC motion.'
+      : score >= 70
+      ? '- Keep momentum. Close any missing readiness items and monitor next action.'
+      : score >= 55
+      ? '- Move this manually. Add notes, clarify status and push the next workflow step.'
+      : '- Treat as weak or stalled. Review whether this opportunity deserves continued attention.',
+  ].join('\n');
+}
+
+
 function getFounderBrief(opportunity: any) {
   const confidence = Number(opportunity?.investment_confidence || 0);
   const founderTrust = Number(opportunity?.founder_trust_score ?? 50);
