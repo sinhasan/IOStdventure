@@ -186,6 +186,94 @@ function buildFollowUpMessage(opportunity: any) {
   ].join('\n');
 }
 
+
+function buildFounderFollowUpPack(opportunity: any) {
+  const code = opportunity?.opportunity_code || 'this opportunity';
+  const startup = opportunity?.startup_name || 'the startup';
+  const investor = opportunity?.firm || 'the investor';
+  const founder = opportunity?.founder_name || 'Founder';
+  const nextAction = getWorkspaceAction(opportunity);
+  const confidence = opportunity?.investment_confidence ?? 0;
+
+  return [
+    `Hi ${founder},`,
+    '',
+    `Quick update on ${code}: ${startup} is now active in the TD Venture opportunity workspace with ${investor}.`,
+    '',
+    `Current signal strength: ${confidence}% investment confidence.`,
+    `Current stage: ${opportunity?.stage || 'Not disclosed'}.`,
+    `Capital ask: ${opportunity?.ask || 'Not disclosed'}.`,
+    '',
+    `Deal Desk next step: ${nextAction}`,
+    '',
+    'Please keep your pitch deck, financial model, traction proof, cap table and company profile ready so we can move quickly when the investor side responds.',
+    '',
+    'Regards,',
+    'TD Venture Deal Desk',
+  ].join('\n');
+}
+
+function buildInvestorFollowUpPack(opportunity: any) {
+  const code = opportunity?.opportunity_code || 'this opportunity';
+  const startup = opportunity?.startup_name || 'the startup';
+  const investor = opportunity?.firm || 'Investor';
+  const nextAction = getWorkspaceAction(opportunity);
+  const confidence = opportunity?.investment_confidence ?? 0;
+  const matchScore = opportunity?.match_score || 0;
+
+  return [
+    `Hi ${investor} Team,`,
+    '',
+    `Sharing a quick TD Venture Deal Desk update for ${code}.`,
+    '',
+    `Startup: ${startup}`,
+    `Sector: ${opportunity?.sector || opportunity?.focus_sectors || 'Not disclosed'}`,
+    `Stage: ${opportunity?.stage || 'Not disclosed'}`,
+    `Capital ask: ${opportunity?.ask || 'Not disclosed'}`,
+    `AI match score: ${matchScore}%`,
+    `Investment confidence: ${confidence}%`,
+    `Risk view: ${opportunity?.investment_risk || 'Medium'}`,
+    '',
+    `Suggested next step: ${nextAction}`,
+    '',
+    'If this remains relevant to your mandate, we can move the opportunity forward through the TD Venture workflow.',
+    '',
+    'Regards,',
+    'TD Venture Deal Desk',
+  ].join('\n');
+}
+
+function buildInternalDealDeskPack(opportunity: any) {
+  const code = opportunity?.opportunity_code || 'this opportunity';
+  const startup = opportunity?.startup_name || 'Protected Startup';
+  const investor = opportunity?.firm || 'Protected Investor';
+  const priority = getPriority(opportunity);
+  const nextAction = getWorkspaceAction(opportunity);
+
+  return [
+    `Workspace 2.9 Follow-up Pack`,
+    '',
+    `Opportunity: ${code}`,
+    `Startup: ${startup}`,
+    `Investor: ${investor}`,
+    `Priority: ${priority}`,
+    `Status: ${opportunity?.status || 'interested'}`,
+    `Investment confidence: ${opportunity?.investment_confidence ?? 0}%`,
+    `Health score: ${opportunity?.health_score ?? 0}`,
+    `Founder trust: ${opportunity?.founder_trust_score ?? 50}`,
+    `Investor trust: ${opportunity?.investor_trust_score ?? 50}`,
+    '',
+    `Internal next action: ${nextAction}`,
+    '',
+    'Deal Desk instruction:',
+    '- Send founder-side update if founder is waiting.',
+    '- Send investor-side update if investor response is pending.',
+    '- Add a note after every communication.',
+    '- Move status only after the next real workflow event.',
+  ].join('\n');
+}
+
+
 function getICReadinessItems(opportunity: any, notes: any[] = []) {
   const confidence = Number(opportunity?.investment_confidence || 0);
   const matchScore = Number(opportunity?.match_score || 0);
@@ -1140,35 +1228,108 @@ export default function OpportunitiesPage() {
               </div>
             </div>
 
-            <div className="mb-5 border border-yellow-500/40 rounded-lg p-4 bg-black/40">
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
-                <div>
-                  <h3 className="font-semibold text-yellow-300">Follow-up Composer</h3>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Copy a stage-aware follow-up message for email, WhatsApp or investor coordination.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className={
-                    copiedAction === 'followup'
-                      ? 'rounded-md bg-yellow-400 px-3 py-2 text-sm font-semibold text-black transition'
-                      : 'rounded-md border border-yellow-500/50 px-3 py-2 text-sm text-yellow-300 transition hover:bg-yellow-500/20 hover:text-white active:scale-95'
-                  }
-                  onClick={() => {
-                    navigator.clipboard?.writeText(buildFollowUpMessage(selected));
-                    setCopiedAction('followup');
-                    window.setTimeout(() => setCopiedAction(null), 1500);
-                  }}
-                >
-                  {copiedAction === 'followup' ? 'Copied ✓' : 'Copy follow-up'}
-                </button>
-              </div>
+            {(() => {
+              const founderFollowUp = buildFounderFollowUpPack(selected);
+              const investorFollowUp = buildInvestorFollowUpPack(selected);
+              const internalPack = buildInternalDealDeskPack(selected);
 
-              <div className="rounded-md border border-yellow-500/20 bg-black/50 p-3 text-sm text-gray-300 whitespace-pre-wrap max-h-56 overflow-y-auto">
-                {buildFollowUpMessage(selected)}
-              </div>
-            </div>
+              const packs = [
+                {
+                  key: 'founder-pack',
+                  title: 'Founder Follow-up',
+                  tone: 'text-emerald-300',
+                  border: 'border-emerald-500/30',
+                  body: founderFollowUp,
+                },
+                {
+                  key: 'investor-pack',
+                  title: 'Investor Follow-up',
+                  tone: 'text-sky-300',
+                  border: 'border-sky-500/30',
+                  body: investorFollowUp,
+                },
+                {
+                  key: 'internal-pack',
+                  title: 'Internal Deal Desk Action',
+                  tone: 'text-yellow-300',
+                  border: 'border-yellow-500/30',
+                  body: internalPack,
+                },
+              ];
+
+              return (
+                <div className="mb-5 border border-yellow-500/40 rounded-lg p-4 bg-black/40">
+                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.25em] text-yellow-300">Workspace 2.9</div>
+                      <h3 className="mt-1 font-semibold text-yellow-300">Follow-up Pack</h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Founder message, investor message and internal Deal Desk action generated from the current opportunity state.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={addNote.isPending}
+                      className={
+                        copiedAction === 'log-followup-pack'
+                          ? 'rounded-md bg-yellow-400 px-3 py-2 text-sm font-semibold text-black transition'
+                          : 'rounded-md border border-yellow-500/50 px-3 py-2 text-sm text-yellow-300 transition hover:bg-yellow-500/20 hover:text-white active:scale-95 disabled:opacity-50'
+                      }
+                      onClick={() => {
+                        addNote.mutate({
+                          id: selected.id,
+                          note: [founderFollowUp, investorFollowUp, internalPack].join('\n\n---\n\n'),
+                        });
+                        setCopiedAction('log-followup-pack');
+                        window.setTimeout(() => setCopiedAction(null), 1500);
+                      }}
+                    >
+                      {copiedAction === 'log-followup-pack' ? 'Logged ✓' : 'Log pack to notes'}
+                    </button>
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-3">
+                    {packs.map((pack) => (
+                      <div key={pack.key} className={`rounded-lg border ${pack.border} bg-black/55 p-4`}>
+                        <div className="mb-3 flex items-start justify-between gap-3">
+                          <div>
+                            <div className={`text-sm font-semibold ${pack.tone}`}>{pack.title}</div>
+                            <div className="mt-1 text-[11px] text-gray-600">
+                              {selected.opportunity_code || 'Opportunity'} · {selected.status || 'interested'}
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            className={
+                              copiedAction === pack.key
+                                ? 'rounded-md bg-yellow-400 px-2 py-1 text-xs font-semibold text-black transition'
+                                : 'rounded-md border border-yellow-500/40 px-2 py-1 text-xs text-yellow-300 transition hover:bg-yellow-500/20 hover:text-white active:scale-95'
+                            }
+                            onClick={() => {
+                              navigator.clipboard?.writeText(pack.body);
+                              setCopiedAction(pack.key);
+                              window.setTimeout(() => setCopiedAction(null), 1500);
+                            }}
+                          >
+                            {copiedAction === pack.key ? 'Copied ✓' : 'Copy'}
+                          </button>
+                        </div>
+
+                        <div className="rounded-md border border-white/10 bg-black/60 p-3 text-xs text-gray-300 whitespace-pre-wrap max-h-72 overflow-y-auto">
+                          {pack.body}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 rounded-md border border-yellow-500/20 bg-yellow-500/5 p-3 text-xs text-gray-400">
+                    Use this pack before moving status. It gives the founder-side message, investor-side message and internal Deal Desk instruction in one place.
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="mb-5 border border-lime-500/40 rounded-lg p-4 bg-black/40">
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
