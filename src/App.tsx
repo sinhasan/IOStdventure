@@ -30,6 +30,7 @@ export default function App() {
           <Route path="/partner" element={<PartnerPage />} />
           <Route element={<AppLayout />}>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/startups" element={<StartupsPage />} />
             <Route path="/investors" element={<InvestorsPage />} />
             <Route path="/matches" element={<MatchesPage />} />
