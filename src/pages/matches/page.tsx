@@ -1339,6 +1339,215 @@ export default function OpportunitiesPage() {
             </div>
 
             {(() => {
+              const operatingScore = getOpportunityOperatingScore(selected, selectedNotes);
+              const operatingGrade = getOpportunityOperatingGrade(operatingScore);
+              const operatingBreakdown = getOpportunityOperatingBreakdown(selected, selectedNotes);
+              const operatingNote = buildOperatingScoreNote(selected, selectedNotes);
+
+              return (
+                <div className="mb-5 border border-orange-500/40 rounded-lg p-4 bg-black/40">
+                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.25em] text-orange-300">Workspace 3.0</div>
+                      <h3 className="mt-1 font-semibold text-orange-300">Opportunity Operating Score</h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        One operating score combining confidence, health, trust, IC readiness, notes and workflow status.
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className={
+                          copiedAction === 'operating-score-copy'
+                            ? 'rounded-md bg-orange-400 px-3 py-2 text-sm font-semibold text-black transition'
+                            : 'rounded-md border border-orange-500/50 px-3 py-2 text-sm text-orange-300 transition hover:bg-orange-500/20 hover:text-white active:scale-95'
+                        }
+                        onClick={() => {
+                          navigator.clipboard?.writeText(operatingNote);
+                          setCopiedAction('operating-score-copy');
+                          window.setTimeout(() => setCopiedAction(null), 1500);
+                        }}
+                      >
+                        {copiedAction === 'operating-score-copy' ? 'Copied ✓' : 'Copy score'}
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={addNote.isPending}
+                        className={
+                          copiedAction === 'operating-score-log'
+                            ? 'rounded-md bg-orange-400 px-3 py-2 text-sm font-semibold text-black transition'
+                            : 'rounded-md border border-orange-500/50 px-3 py-2 text-sm text-orange-300 transition hover:bg-orange-500/20 hover:text-white active:scale-95 disabled:opacity-50'
+                        }
+                        onClick={() => {
+                          addNote.mutate({ id: selected.id, note: operatingNote });
+                          setCopiedAction('operating-score-log');
+                          window.setTimeout(() => setCopiedAction(null), 1500);
+                        }}
+                      >
+                        {copiedAction === 'operating-score-log' ? 'Logged ✓' : 'Log score'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
+                    <div className="rounded-lg border border-orange-500/30 bg-black/60 p-4">
+                      <div className="text-xs text-gray-500">Operating Score</div>
+                      <div
+                        className={
+                          operatingScore >= 85
+                            ? 'mt-2 text-5xl font-bold text-lime-300'
+                            : operatingScore >= 70
+                            ? 'mt-2 text-5xl font-bold text-emerald-300'
+                            : operatingScore >= 55
+                            ? 'mt-2 text-5xl font-bold text-yellow-300'
+                            : 'mt-2 text-5xl font-bold text-red-300'
+                        }
+                      >
+                        {operatingScore}
+                      </div>
+                      <div className="mt-2 text-sm font-semibold text-orange-200">{operatingGrade}</div>
+                      <div className="mt-3 text-xs text-gray-500">
+                        Priority: <span className="text-blue-300 font-semibold">{getPriority(selected)}</span>
+                      </div>
+                      <div className="mt-2 text-xs text-gray-500">
+                        Next: <span className="text-gray-300">{getWorkspaceAction(selected)}</span>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {operatingBreakdown.map((item: any) => (
+                        <div key={item.label} className="rounded-lg border border-orange-500/20 bg-black/55 p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-sm font-medium text-gray-200">{item.label}</div>
+                              <div className="mt-1 text-[11px] text-gray-600">Weight {item.weight}</div>
+                            </div>
+                            <div className={item.ready ? 'text-lime-300 font-bold' : 'text-yellow-300 font-bold'}>
+                              {item.value}
+                            </div>
+                          </div>
+                          <div className="mt-2 text-xs text-gray-500">{item.detail}</div>
+                          <div className="mt-2 text-[11px]">
+                            {item.ready ? (
+                              <span className="text-lime-300">OK</span>
+                            ) : (
+                              <span className="text-yellow-300">Needs attention</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {(() => {
+              const riskItems = getOpportunityRiskRadar(selected, selectedNotes);
+              const riskSummary = getRiskRadarSummary(riskItems);
+              const riskNote = buildRiskRadarNote(selected, selectedNotes);
+              const highRiskCount = riskItems.filter((risk: any) => risk.severity === 'High').length;
+              const mediumRiskCount = riskItems.filter((risk: any) => risk.severity === 'Medium').length;
+
+              return (
+                <div className="mb-5 border border-red-500/40 rounded-lg p-4 bg-black/40">
+                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.25em] text-red-300">Workspace 3.1</div>
+                      <h3 className="mt-1 font-semibold text-red-300">Opportunity Risk Radar</h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Detects confidence, trust, notes, readiness, workflow and documentation risks before the opportunity moves forward.
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className={
+                          copiedAction === 'risk-radar-copy'
+                            ? 'rounded-md bg-red-400 px-3 py-2 text-sm font-semibold text-black transition'
+                            : 'rounded-md border border-red-500/50 px-3 py-2 text-sm text-red-300 transition hover:bg-red-500/20 hover:text-white active:scale-95'
+                        }
+                        onClick={() => {
+                          navigator.clipboard?.writeText(riskNote);
+                          setCopiedAction('risk-radar-copy');
+                          window.setTimeout(() => setCopiedAction(null), 1500);
+                        }}
+                      >
+                        {copiedAction === 'risk-radar-copy' ? 'Copied ✓' : 'Copy radar'}
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={addNote.isPending}
+                        className={
+                          copiedAction === 'risk-radar-log'
+                            ? 'rounded-md bg-red-400 px-3 py-2 text-sm font-semibold text-black transition'
+                            : 'rounded-md border border-red-500/50 px-3 py-2 text-sm text-red-300 transition hover:bg-red-500/20 hover:text-white active:scale-95 disabled:opacity-50'
+                        }
+                        onClick={() => {
+                          addNote.mutate({ id: selected.id, note: riskNote });
+                          setCopiedAction('risk-radar-log');
+                          window.setTimeout(() => setCopiedAction(null), 1500);
+                        }}
+                      >
+                        {copiedAction === 'risk-radar-log' ? 'Logged ✓' : 'Log radar'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
+                    <div className="rounded-lg border border-red-500/30 bg-black/60 p-4">
+                      <div className="text-xs text-gray-500">Risk Summary</div>
+                      <div
+                        className={
+                          highRiskCount > 0
+                            ? 'mt-2 text-3xl font-bold text-red-300'
+                            : mediumRiskCount > 0
+                            ? 'mt-2 text-3xl font-bold text-yellow-300'
+                            : 'mt-2 text-3xl font-bold text-lime-300'
+                        }
+                      >
+                        {highRiskCount > 0 ? 'High Risk' : mediumRiskCount > 0 ? 'Watch' : 'Clear'}
+                      </div>
+                      <div className="mt-2 text-sm text-gray-300">{riskSummary}</div>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {riskItems.map((risk: any) => (
+                        <div key={`${risk.severity}-${risk.label}`} className="rounded-lg border border-red-500/20 bg-black/55 p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-sm font-medium text-gray-200">{risk.label}</div>
+                              <div className="mt-1 text-xs text-gray-500">{risk.detail}</div>
+                            </div>
+                            <div
+                              className={
+                                risk.severity === 'High'
+                                  ? 'rounded-full border border-red-500/40 px-2 py-1 text-xs text-red-300'
+                                  : risk.severity === 'Medium'
+                                  ? 'rounded-full border border-yellow-500/40 px-2 py-1 text-xs text-yellow-300'
+                                  : 'rounded-full border border-lime-500/40 px-2 py-1 text-xs text-lime-300'
+                              }
+                            >
+                              {risk.severity}
+                            </div>
+                          </div>
+
+                          <div className="mt-3 rounded-md border border-white/10 bg-black/50 p-2 text-xs text-gray-400">
+                            Action: {risk.action}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {(() => {
               const founderBrief = getFounderBrief(selected);
               const investorBrief = getInvestorBrief(selected);
 
