@@ -1665,7 +1665,7 @@ export default function OpportunitiesPage() {
               );
             })()}
 
-            <div className="mb-5 border border-purple-500/40 rounded-lg p-4 bg-black/40">
+            <div className={`${activeWorkspaceTab === 'ic' ? '' : 'hidden'} mb-5 border border-purple-500/40 rounded-lg p-4 bg-black/40`}>
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
                 <div>
                   <h3 className="font-semibold text-purple-300">Investment Memo Snapshot</h3>
@@ -1818,7 +1818,7 @@ export default function OpportunitiesPage() {
               ];
 
               return (
-                <div className="mb-5 border border-yellow-500/40 rounded-lg p-4 bg-black/40">
+                <div className={`${activeWorkspaceTab === 'followup' ? '' : 'hidden'} mb-5 border border-yellow-500/40 rounded-lg p-4 bg-black/40`}>
                   <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
                     <div>
                       <div className="text-xs uppercase tracking-[0.25em] text-yellow-300">Workspace 2.9</div>
@@ -1891,7 +1891,7 @@ export default function OpportunitiesPage() {
               );
             })()}
 
-            <div className="mb-5 border border-lime-500/40 rounded-lg p-4 bg-black/40">
+            <div className={`${activeWorkspaceTab === 'ic' ? '' : 'hidden'} mb-5 border border-lime-500/40 rounded-lg p-4 bg-black/40`}>
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
                 <div>
                   <h3 className="font-semibold text-lime-300">Internal Deal Notes</h3>
@@ -1942,7 +1942,7 @@ export default function OpportunitiesPage() {
               </div>
             </div>
 
-            <div className="mb-5 border border-blue-500/40 rounded-lg p-4 bg-black/40">
+            <div className={`${activeWorkspaceTab === 'ic' ? '' : 'hidden'} mb-5 border border-blue-500/40 rounded-lg p-4 bg-black/40`}>
               <h3 className="font-semibold text-blue-300 mb-3">Founder Trust Coach</h3>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
