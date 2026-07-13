@@ -14,6 +14,14 @@ const stages = [
   { key: 'funded', label: 'Funded' },
 ];
 
+const workspaceTabs = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'scores', label: 'Scores & Risk' },
+  { key: 'followup', label: 'Follow-up' },
+  { key: 'ic', label: 'IC & Notes' },
+  { key: 'timeline', label: 'Timeline' },
+];
+
 function nextStage(current: string) {
   const index = stages.findIndex((s) => s.key === current);
   if (index < 0 || index >= stages.length - 1) return null;
@@ -814,6 +822,7 @@ export default function OpportunitiesPage() {
   const [selected, setSelected] = useState<any | null>(null);
   const [noteText, setNoteText] = useState('');
   const [copiedAction, setCopiedAction] = useState<string | null>(null);
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState('overview');
 
   const { data = [], isLoading, refetch } = useQuery({
     queryKey: ['opportunities'],
@@ -1200,7 +1209,26 @@ export default function OpportunitiesPage() {
               </div>
             </div>
 
-            <div className="mb-5 border border-lime-500/40 rounded-lg p-4 bg-black/40">
+            <div className="sticky top-[82px] z-10 mb-5 rounded-lg border border-lime-500/40 bg-black/95 p-2 backdrop-blur">
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+                {workspaceTabs.map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    className={
+                      activeWorkspaceTab === tab.key
+                        ? 'rounded-md bg-lime-400 px-3 py-2 text-sm font-semibold text-black transition'
+                        : 'rounded-md border border-lime-500/30 px-3 py-2 text-sm text-lime-300 transition hover:bg-lime-500/10 hover:text-white'
+                    }
+                    onClick={() => setActiveWorkspaceTab(tab.key)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className={`${activeWorkspaceTab === 'overview' ? '' : 'hidden'} mb-5 border border-lime-500/40 rounded-lg p-4 bg-black/40`}>
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
                 <div>
                   <h3 className="font-semibold text-lime-300">Deal Command Center</h3>
@@ -1345,7 +1373,7 @@ export default function OpportunitiesPage() {
               const operatingNote = buildOperatingScoreNote(selected, selectedNotes);
 
               return (
-                <div className="mb-5 border border-orange-500/40 rounded-lg p-4 bg-black/40">
+                <div className={`${activeWorkspaceTab === 'scores' ? '' : 'hidden'} mb-5 border border-orange-500/40 rounded-lg p-4 bg-black/40`}>
                   <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
                     <div>
                       <div className="text-xs uppercase tracking-[0.25em] text-orange-300">Workspace 3.0</div>
@@ -1452,7 +1480,7 @@ export default function OpportunitiesPage() {
               const mediumRiskCount = riskItems.filter((risk: any) => risk.severity === 'Medium').length;
 
               return (
-                <div className="mb-5 border border-red-500/40 rounded-lg p-4 bg-black/40">
+                <div className={`${activeWorkspaceTab === 'scores' ? '' : 'hidden'} mb-5 border border-red-500/40 rounded-lg p-4 bg-black/40`}>
                   <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
                     <div>
                       <div className="text-xs uppercase tracking-[0.25em] text-red-300">Workspace 3.1</div>
@@ -1552,7 +1580,7 @@ export default function OpportunitiesPage() {
               const investorBrief = getInvestorBrief(selected);
 
               return (
-                <div className="mb-5 border border-emerald-500/40 rounded-lg p-4 bg-black/40">
+                <div className={`${activeWorkspaceTab === 'overview' ? '' : 'hidden'} mb-5 border border-emerald-500/40 rounded-lg p-4 bg-black/40`}>
                   <div className="mb-4">
                     <h3 className="font-semibold text-emerald-300">Founder / Investor Brief Cards</h3>
                     <p className="text-xs text-gray-500 mt-1">
@@ -1686,7 +1714,7 @@ export default function OpportunitiesPage() {
               const icScore = getICReadinessScore(selected, selectedNotes);
 
               return (
-                <div className="mb-5 border border-purple-500/40 rounded-lg p-4 bg-black/40">
+                <div className={`${activeWorkspaceTab === 'ic' ? '' : 'hidden'} mb-5 border border-purple-500/40 rounded-lg p-4 bg-black/40`}>
                   <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
                     <div>
                       <h3 className="font-semibold text-purple-300">IC Readiness Checklist</h3>
@@ -1730,7 +1758,7 @@ export default function OpportunitiesPage() {
               );
             })()}
 
-            <div className="mb-5 border border-cyan-500/40 rounded-lg p-4 bg-black/40">
+            <div className={`${activeWorkspaceTab === 'ic' ? '' : 'hidden'} mb-5 border border-cyan-500/40 rounded-lg p-4 bg-black/40`}>
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
                 <div>
                   <h3 className="font-semibold text-cyan-300">IC Review Note Generator</h3>
@@ -1962,7 +1990,7 @@ export default function OpportunitiesPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="border border-lime-500/40 rounded-lg p-4">
+              <div className={`${activeWorkspaceTab === 'overview' ? '' : 'hidden'} border border-lime-500/40 rounded-lg p-4`}>
                 <h3 className="font-semibold text-lime-300 mb-3">Opportunity Summary</h3>
                 <div className="space-y-2 text-sm">
                   <div><span className="text-gray-500">Startup:</span> {selected.startup_name || 'Protected'}</div>
@@ -1974,7 +2002,7 @@ export default function OpportunitiesPage() {
                 </div>
               </div>
 
-              <div className="border border-blue-500/40 rounded-lg p-4">
+              <div className={`${activeWorkspaceTab === 'timeline' ? '' : 'hidden'} border border-blue-500/40 rounded-lg p-4`}>
                 <h3 className="font-semibold text-blue-300 mb-3">Opportunity Journey</h3>
 
                 <div className="space-y-2 text-sm">
@@ -2087,14 +2115,14 @@ export default function OpportunitiesPage() {
               </div>
             </div>
 
-            <div className="mt-5 border border-lime-500/40 rounded-lg p-4">
+            <div className={`${activeWorkspaceTab === 'timeline' ? '' : 'hidden'} mt-5 border border-lime-500/40 rounded-lg p-4`}>
               <h3 className="font-semibold text-lime-300 mb-2">Chief of Staff Recommendation</h3>
               <p className="text-sm text-gray-300">
                 Complete payment/reveal, queue investor notification, then monitor response SLA. Escalate if no response is received within the defined window.
               </p>
             </div>
 
-            <div className="mt-5 border border-blue-500/40 rounded-lg p-4">
+            <div className={`${activeWorkspaceTab === 'scores' ? '' : 'hidden'} mt-5 border border-blue-500/40 rounded-lg p-4`}>
               <h3 className="font-semibold text-blue-300 mb-3">Why this Investment Confidence?</h3>
 
               <div className="space-y-2 text-sm">
