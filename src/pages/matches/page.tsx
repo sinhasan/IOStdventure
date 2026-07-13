@@ -585,6 +585,185 @@ function buildOperatingScoreNote(opportunity: any, notes: any[] = []) {
 }
 
 
+
+function getOpportunityRiskRadar(opportunity: any, notes: any[] = []) {
+  const risks: any[] = [];
+  const confidence = Number(opportunity?.investment_confidence || 0);
+  const health = Number(opportunity?.health_score || 0);
+  const founderTrust = Number(opportunity?.founder_trust_score ?? 50);
+  const investorTrust = Number(opportunity?.investor_trust_score ?? 50);
+  const icReadiness = getICReadinessScore(opportunity, notes);
+  const status = opportunity?.status || 'interested';
+  const docs = getDocumentReadiness(opportunity);
+
+  if (confidence < 55) {
+    risks.push({
+      label: 'Low Investment Confidence',
+      severity: 'High',
+      detail: `${confidence}% confidence. This opportunity needs stronger match, trust or traction signals.`,
+      action: 'Review fit before spending more Deal Desk time.',
+    });
+  } else if (confidence < 70) {
+    risks.push({
+      label: 'Moderate Investment Confidence',
+      severity: 'Medium',
+      detail: `${confidence}% confidence. Good enough to monitor, but not yet IC-ready.`,
+      action: 'Strengthen profile and confirm investor mandate fit.',
+    });
+  }
+
+  if (health < 50) {
+    risks.push({
+      label: 'Weak Opportunity Health',
+      severity: 'High',
+      detail: `Health score is ${health}. Workflow may be stalled or incomplete.`,
+      action: 'Add a note, clarify status and force the next movement.',
+    });
+  } else if (health < 70) {
+    risks.push({
+      label: 'Opportunity Needs Movement',
+      severity: 'Medium',
+      detail: `Health score is ${health}. Opportunity is alive but needs operational push.`,
+      action: 'Use Follow-up Pack and log the next action.',
+    });
+  }
+
+  if (founderTrust < 50) {
+    risks.push({
+      label: 'Founder Trust Gap',
+      severity: 'High',
+      detail: `Founder trust is ${founderTrust}. The founder-side profile may not be strong enough.`,
+      action: 'Request better profile, pitch deck, traction proof and founder background.',
+    });
+  } else if (founderTrust < 65) {
+    risks.push({
+      label: 'Founder Trust Can Improve',
+      severity: 'Medium',
+      detail: `Founder trust is ${founderTrust}. More credibility signals can improve confidence.`,
+      action: 'Use Founder Trust Coach before investor push.',
+    });
+  }
+
+  if (investorTrust < 50) {
+    risks.push({
+      label: 'Investor Trust Gap',
+      severity: 'High',
+      detail: `Investor trust is ${investorTrust}. Investor-side quality or fit needs review.`,
+      action: 'Check investor mandate, sector fit and engagement quality.',
+    });
+  } else if (investorTrust < 65) {
+    risks.push({
+      label: 'Investor Fit Needs Review',
+      severity: 'Medium',
+      detail: `Investor trust is ${investorTrust}. Fit is acceptable but not strong.`,
+      action: 'Confirm sector, stage and cheque-size alignment.',
+    });
+  }
+
+  if (icReadiness < 60) {
+    risks.push({
+      label: 'Not IC Ready',
+      severity: 'High',
+      detail: `IC readiness is ${icReadiness}%. Missing materials or notes may block review.`,
+      action: 'Close checklist gaps before IC preparation.',
+    });
+  } else if (icReadiness < 80) {
+    risks.push({
+      label: 'IC Readiness Gap',
+      severity: 'Medium',
+      detail: `IC readiness is ${icReadiness}%. Almost there, but not fully prepared.`,
+      action: 'Complete missing checklist items and add Deal Desk notes.',
+    });
+  }
+
+  if (!Array.isArray(notes) || notes.length === 0) {
+    risks.push({
+      label: 'No Internal Deal Notes',
+      severity: 'Medium',
+      detail: 'There is no internal memory for this opportunity yet.',
+      action: 'Add one note before changing status or sending follow-up.',
+    });
+  }
+
+  if (!opportunity?.ask) {
+    risks.push({
+      label: 'Capital Ask Missing',
+      severity: 'Medium',
+      detail: 'The funding ask is not available in the opportunity view.',
+      action: 'Request or update capital ask before serious investor follow-up.',
+    });
+  }
+
+  if (status === 'payment_pending') {
+    risks.push({
+      label: 'Payment / Reveal Pending',
+      severity: 'High',
+      detail: 'The workflow is blocked before notification or response.',
+      action: 'Complete payment / reveal before Deal Desk pushes the opportunity.',
+    });
+  }
+
+  if (['interested', 'notified', 'response_received'].includes(status) && health < 75) {
+    risks.push({
+      label: 'Workflow Stall Risk',
+      severity: 'Medium',
+      detail: `Current status is ${status}. Opportunity may lose momentum without action.`,
+      action: getWorkspaceAction(opportunity),
+    });
+  }
+
+  const missingDocs = docs.filter((d: any) => !d.ready);
+  if (missingDocs.length > 0) {
+    risks.push({
+      label: 'Document Readiness Gap',
+      severity: missingDocs.length >= 2 ? 'High' : 'Medium',
+      detail: `${missingDocs.length} document readiness item(s) need attention.`,
+      action: missingDocs.map((d: any) => d.label).join(', '),
+    });
+  }
+
+  if (risks.length === 0) {
+    risks.push({
+      label: 'No Major Risk Detected',
+      severity: 'Low',
+      detail: 'This opportunity has acceptable confidence, health, trust and readiness signals.',
+      action: 'Keep momentum and prepare the next workflow step.',
+    });
+  }
+
+  const severityOrder: any = { High: 0, Medium: 1, Low: 2 };
+  return risks.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+}
+
+function getRiskRadarSummary(risks: any[] = []) {
+  const high = risks.filter((r) => r.severity === 'High').length;
+  const medium = risks.filter((r) => r.severity === 'Medium').length;
+
+  if (high > 0) return `${high} high-risk item(s) need attention`;
+  if (medium > 0) return `${medium} medium-risk item(s) need movement`;
+  return 'No major risk detected';
+}
+
+function buildRiskRadarNote(opportunity: any, notes: any[] = []) {
+  const risks = getOpportunityRiskRadar(opportunity, notes);
+  const code = opportunity?.opportunity_code || 'Opportunity';
+
+  return [
+    'Workspace 3.1 Risk Radar',
+    '',
+    `Opportunity: ${code}`,
+    `Startup: ${opportunity?.startup_name || 'Protected Startup'}`,
+    `Investor: ${opportunity?.firm || 'Protected Investor'}`,
+    `Risk Summary: ${getRiskRadarSummary(risks)}`,
+    '',
+    'Risk Items:',
+    ...risks.map((risk) => `- [${risk.severity}] ${risk.label}: ${risk.detail} Action: ${risk.action}`),
+    '',
+    `Recommended Next Action: ${getWorkspaceAction(opportunity)}`,
+  ].join('\n');
+}
+
+
 function getFounderBrief(opportunity: any) {
   const confidence = Number(opportunity?.investment_confidence || 0);
   const founderTrust = Number(opportunity?.founder_trust_score ?? 50);
