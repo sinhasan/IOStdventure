@@ -48,24 +48,24 @@ export default function SignIn() {
         <div className="grid w-full max-w-6xl gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
           <section className="hidden lg:block">
             <div className="mb-6 inline-flex rounded-full border border-lime-500/40 bg-black/60 px-4 py-2 text-xs uppercase tracking-[0.35em] text-lime-300">
-              TD Venture IOS
+              TD Venture CRM
             </div>
 
             <h1 className="max-w-3xl text-5xl font-semibold leading-tight tracking-tight">
-              Investment Operating System
+              Startup Capital CRM
               <span className="block text-lime-300">Deal Desk Command Center</span>
             </h1>
 
             <p className="mt-6 max-w-2xl text-lg text-gray-400">
-              Sign in to manage opportunities, investor workflows, internal notes, IC readiness,
-              follow-ups and portfolio movement from one operating screen.
+              Manage startup discovery, investor workflows, opportunity movement, internal notes,
+              IC readiness and follow-ups from one high-speed operating screen.
             </p>
 
             <div className="mt-8 grid max-w-3xl grid-cols-3 gap-4">
               {[
-                ['LIVE', 'Deal Flow'],
+                ['CRM', 'Deal Desk'],
                 ['AI', 'Confidence'],
-                ['IC', 'Readiness'],
+                ['OPS', 'Follow-up'],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-xl border border-lime-500/30 bg-black/60 p-4 shadow-[0_0_25px_rgba(163,255,18,0.08)]">
                   <div className="text-xs tracking-[0.35em] text-gray-500">{label}</div>
@@ -80,18 +80,18 @@ export default function SignIn() {
                 <span>Secure Access</span>
               </div>
               <div className="grid grid-cols-2 gap-3 text-sm text-gray-400">
-                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">Workspace Intelligence</div>
-                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">Internal Deal Notes</div>
-                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">Follow-up Composer</div>
-                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">IC Review Notes</div>
+                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">Startup & Investor CRM</div>
+                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">Opportunity Workspace</div>
+                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">Follow-up Pack</div>
+                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">IC Notes & Risk Radar</div>
               </div>
             </div>
           </section>
 
           <section className="mx-auto w-full max-w-md">
             <div className="mb-5 text-center lg:hidden">
-              <div className="text-xs uppercase tracking-[0.35em] text-lime-300">TD Venture IOS</div>
-              <h1 className="mt-3 text-3xl font-semibold">Deal Desk Login</h1>
+              <div className="text-xs uppercase tracking-[0.35em] text-lime-300">TD Venture CRM</div>
+              <h1 className="mt-3 text-3xl font-semibold">Startup Capital CRM</h1>
             </div>
 
             <form
@@ -102,7 +102,7 @@ export default function SignIn() {
                 <div className="text-xs uppercase tracking-[0.3em] text-gray-500">Secure terminal</div>
                 <h2 className="mt-2 text-2xl font-semibold text-white">Sign in</h2>
                 <p className="mt-2 text-sm text-gray-500">
-                  Access the TD Venture Investment Operating System.
+                  Access the TD Venture CRM and Deal Desk workspace.
                 </p>
               </div>
 
@@ -146,7 +146,7 @@ export default function SignIn() {
 
               <div className="mt-5 flex items-center justify-between border-t border-white/10 pt-4 text-xs text-gray-600">
                 <span>CRM.TDVENTURE.VC</span>
-                <span className="text-lime-400">ONLINE</span>
+                <span className="text-lime-400">SECURE CRM ONLINE</span>
               </div>
             </form>
           </section>
