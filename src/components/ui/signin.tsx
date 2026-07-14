@@ -41,23 +41,23 @@ export default function SignIn() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-black text-white">
       <BloombergBackground />
-      <div className="absolute inset-0 bg-black/55" />
-      <div className="absolute left-0 top-0 h-full w-1/3 bg-gradient-to-r from-lime-500/10 to-transparent" />
-      <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-cyan-500/10 to-transparent" />
+      <div className="absolute inset-0 bg-black/40" />
+      <div className="absolute left-0 top-0 h-full w-1/3 bg-gradient-to-r from-lime-500/15 to-transparent" />
+      <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-cyan-500/15 to-transparent" />
 
       <div className="relative z-10 flex min-h-screen items-center justify-center px-6 py-10">
         <div className="grid w-full max-w-6xl gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
           <section className="hidden lg:block">
-            <div className="mb-6 inline-flex rounded-full border border-lime-500/40 bg-black/60 px-4 py-2 text-xs uppercase tracking-[0.35em] text-lime-300">
+            <div className="mb-6 inline-flex rounded-full border border-lime-400/70 bg-black/80 px-5 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-lime-200 shadow-[0_0_24px_rgba(163,255,18,0.18)]">
               TD Venture CRM
             </div>
 
-            <h1 className="max-w-3xl text-5xl font-semibold leading-tight tracking-tight">
+            <h1 className="max-w-3xl text-6xl font-bold leading-tight tracking-tight drop-shadow-[0_0_22px_rgba(163,255,18,0.16)]">
               Startup Capital CRM
-              <span className="block text-lime-300">Deal Desk Command Center</span>
+              <span className="block text-lime-300 drop-shadow-[0_0_18px_rgba(163,255,18,0.35)]">Deal Desk Command Center</span>
             </h1>
 
-            <p className="mt-6 max-w-2xl text-lg text-gray-400">
+            <p className="mt-6 max-w-2xl text-xl font-medium leading-relaxed text-gray-300">
               Manage startup discovery, investor workflows, opportunity movement, internal notes,
               IC readiness and follow-ups from one high-speed operating screen.
             </p>
@@ -68,14 +68,14 @@ export default function SignIn() {
                 ['AI', 'Confidence'],
                 ['OPS', 'Follow-up'],
               ].map(([label, value]) => (
-                <div key={label} className="rounded-xl border border-lime-500/30 bg-black/60 p-4 shadow-[0_0_25px_rgba(163,255,18,0.08)]">
+                <div key={label} className="rounded-xl border border-lime-400/50 bg-black/75 p-5 shadow-[0_0_30px_rgba(163,255,18,0.14)]">
                   <div className="text-xs tracking-[0.35em] text-gray-500">{label}</div>
-                  <div className="mt-3 text-xl font-semibold text-lime-300">{value}</div>
+                  <div className="mt-3 text-2xl font-bold text-lime-300">{value}</div>
                 </div>
               ))}
             </div>
 
-            <div className="mt-8 rounded-xl border border-cyan-500/30 bg-black/60 p-5">
+            <div className="mt-8 rounded-xl border border-cyan-400/50 bg-black/75 p-5 shadow-[0_0_30px_rgba(34,211,238,0.12)]">
               <div className="mb-3 flex items-center justify-between text-xs uppercase tracking-[0.25em] text-cyan-300">
                 <span>Operator Console</span>
                 <span>Secure Access</span>
@@ -97,11 +97,11 @@ export default function SignIn() {
 
             <form
               onSubmit={handleSubmit}
-              className="rounded-2xl border border-lime-500/40 bg-black/80 p-6 shadow-[0_0_45px_rgba(163,255,18,0.16)] backdrop-blur"
+              className="rounded-2xl border border-lime-400/70 bg-black/90 p-7 shadow-[0_0_65px_rgba(163,255,18,0.24)] backdrop-blur"
             >
               <div className="mb-6">
                 <div className="text-xs uppercase tracking-[0.3em] text-gray-500">Secure terminal</div>
-                <h2 className="mt-2 text-2xl font-semibold text-white">Sign in</h2>
+                <h2 className="mt-2 text-3xl font-bold text-white">Sign in</h2>
                 <p className="mt-2 text-sm text-gray-500">
                   Access the TD Venture CRM and Deal Desk workspace.
                 </p>
@@ -119,7 +119,7 @@ export default function SignIn() {
               <input
                 type="email"
                 placeholder="operator@tdventure.vc"
-                className="mb-4 w-full rounded-md border border-lime-500/30 bg-black/70 px-3 py-3 text-white placeholder:text-gray-700 outline-none transition focus:border-lime-300 focus:shadow-[0_0_18px_rgba(163,255,18,0.18)]"
+                className="mb-4 w-full rounded-md border border-lime-400/50 bg-black/80 px-3 py-3 text-white placeholder:text-gray-600 outline-none transition focus:border-lime-200 focus:shadow-[0_0_22px_rgba(163,255,18,0.26)]"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -131,7 +131,7 @@ export default function SignIn() {
               <input
                 type="password"
                 placeholder="••••••••"
-                className="mb-5 w-full rounded-md border border-lime-500/30 bg-black/70 px-3 py-3 text-white placeholder:text-gray-700 outline-none transition focus:border-lime-300 focus:shadow-[0_0_18px_rgba(163,255,18,0.18)]"
+                className="mb-5 w-full rounded-md border border-lime-400/50 bg-black/80 px-3 py-3 text-white placeholder:text-gray-600 outline-none transition focus:border-lime-200 focus:shadow-[0_0_22px_rgba(163,255,18,0.26)]"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -140,7 +140,7 @@ export default function SignIn() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-md bg-lime-400 py-3 font-semibold text-black transition hover:bg-lime-300 hover:shadow-[0_0_24px_rgba(163,255,18,0.35)] active:scale-[0.99] disabled:opacity-50"
+                className="w-full rounded-md bg-lime-400 py-3.5 text-sm font-bold uppercase tracking-[0.12em] text-black transition hover:bg-lime-300 hover:shadow-[0_0_34px_rgba(163,255,18,0.45)] active:scale-[0.99] disabled:opacity-50"
               >
                 {loading ? 'Signing in...' : 'Enter Deal Desk'}
               </button>
