@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import BloombergBackground from '@/components/crm/BloombergBackground';
 
 export default function SignIn() {
   const [email, setEmail] = useState('');
@@ -39,8 +40,8 @@ export default function SignIn() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-black text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(163,255,18,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(56,189,248,0.16),transparent_30%)]" />
-      <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(163,255,18,0.16)_1px,transparent_1px),linear-gradient(90deg,rgba(163,255,18,0.16)_1px,transparent_1px)] [background-size:42px_42px]" />
+      <BloombergBackground />
+      <div className="absolute inset-0 bg-black/55" />
       <div className="absolute left-0 top-0 h-full w-1/3 bg-gradient-to-r from-lime-500/10 to-transparent" />
       <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-cyan-500/10 to-transparent" />
 
