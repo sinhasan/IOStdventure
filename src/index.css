@@ -1,5 +1,34 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+
+
+@font-face {
+  font-family: "Fraunces";
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url("https://fonts.gstatic.com/s/fraunces/v37/6NUh8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk.woff2")
+    format("woff2");
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("https://fonts.gstatic.com/s/inter/v19/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2")
+    format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url("https://fonts.gstatic.com/s/jetbrainsmono/v23/tDbY2o-flEEny0FZhsfKu5WU4xD-B0TOE0yO6w.woff2")
+    format("woff2");
+}
+
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
@@ -181,4 +210,86 @@
   button {
     border-color: #a3ff00;
   }
+}
+
+/* TDV PRIVATE MARKETPLACE VISUAL ALIGNMENT */
+:root,
+.dark {
+  --background: oklch(0.16 0.012 250);
+  --foreground: oklch(0.96 0.01 90);
+
+  --card: oklch(0.21 0.014 250);
+  --card-foreground: oklch(0.96 0.01 90);
+
+  --popover: oklch(0.25 0.016 250);
+  --popover-foreground: oklch(0.96 0.01 90);
+
+  --primary: oklch(0.88 0.22 125);
+  --primary-foreground: oklch(0.18 0.02 130);
+
+  --secondary: oklch(0.25 0.016 250);
+  --secondary-foreground: oklch(0.96 0.01 90);
+
+  --muted: oklch(0.23 0.014 250);
+  --muted-foreground: oklch(0.68 0.015 250);
+
+  --accent: oklch(0.25 0.016 250);
+  --accent-foreground: oklch(0.88 0.22 125);
+
+  --border: oklch(0.96 0.01 90 / 0.10);
+  --input: oklch(0.96 0.01 90 / 0.12);
+  --ring: oklch(0.88 0.22 125);
+}
+
+html,
+body,
+#root {
+  font-family: "Inter", system-ui, sans-serif;
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+.font-display,
+.font-serif {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+h4,
+h5,
+h6,
+.font-sans {
+  font-family: "Inter", system-ui, sans-serif;
+  font-weight: 700;
+}
+
+.font-mono,
+code,
+kbd,
+pre {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
+
+button,
+[role="button"],
+input,
+select,
+textarea {
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+button,
+[role="button"] {
+  border-color: var(--border);
+  font-weight: 700;
+}
+
+::selection {
+  background: var(--primary);
+  color: var(--primary-foreground);
 }
