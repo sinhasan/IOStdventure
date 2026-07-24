@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { DefaultProviders } from "./components/providers/default.tsx";
 import AuthCallback from "./pages/auth/Callback.tsx";
+import WorkspaceLaunch from "./pages/auth/WorkspaceLaunch.tsx";
 import AppLayout from "./components/layout/AppLayout.tsx";
 import Dashboard from "./pages/dashboard/page.tsx";
 import StartupsPage from "./pages/startups/page.tsx";
@@ -26,6 +27,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<SignIn />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/auth/launch" element={<WorkspaceLaunch />} />
           <Route path="/onboarding" element={<OnboardingPage />} />
           <Route path="/partner" element={<PartnerPage />} />
           <Route element={<AppLayout />}>
