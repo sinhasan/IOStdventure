@@ -55,13 +55,13 @@ export default function SignIn() {
       </a>
 
       <div className="relative z-10 flex min-h-screen items-center justify-center px-6 py-10">
-        <div className="grid w-full max-w-6xl gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
+        <div className="grid w-full max-w-5xl gap-8 lg:grid-cols-[1.08fr_0.92fr] lg:items-center">
           <section className="hidden lg:block">
             <div className="mb-6 inline-flex rounded-full border border-lime-400/70 bg-black/80 px-5 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-lime-200 shadow-[0_0_24px_rgba(163,255,18,0.18)]">
               TD Venture CRM
             </div>
 
-            <h1 className="max-w-3xl text-6xl font-bold leading-tight tracking-tight drop-shadow-[0_0_22px_rgba(163,255,18,0.16)]">
+            <h1 className="max-w-3xl text-5xl font-bold leading-[1.04] tracking-tight drop-shadow-[0_0_22px_rgba(163,255,18,0.16)]">
               Startup Capital CRM
               <span className="block text-lime-300 drop-shadow-[0_0_18px_rgba(163,255,18,0.35)]">Deal Desk{" "}
                   <span className="text-[#98A2B3]">
@@ -69,7 +69,7 @@ export default function SignIn() {
                   </span></span>
             </h1>
 
-            <p className="mt-6 max-w-2xl text-xl font-medium leading-relaxed text-gray-300">
+            <p className="mt-6 max-w-2xl text-base font-medium leading-relaxed text-gray-400 xl:text-lg">
               Manage startup discovery, investor workflows, opportunity movement, internal notes,
               IC readiness and follow-ups from one high-speed operating screen.
             </p>
@@ -80,14 +80,14 @@ export default function SignIn() {
                 ['AI', 'Confidence'],
                 ['OPS', 'Follow-up'],
               ].map(([label, value]) => (
-                <div key={label} className="rounded-xl border border-lime-400/50 bg-black/75 p-5 shadow-[0_0_30px_rgba(163,255,18,0.14)]">
+                <div key={label} className="rounded-xl border border-lime-400/40 bg-black/75 p-4 shadow-[0_0_24px_rgba(163,255,18,0.12)]">
                   <div className="text-xs tracking-[0.35em] text-gray-500">{label}</div>
-                  <div className="mt-3 text-2xl font-bold text-lime-300">{value}</div>
+                  <div className="mt-2 text-xl font-bold text-lime-300">{value}</div>
                 </div>
               ))}
             </div>
 
-            <div className="mt-8 rounded-xl border border-cyan-400/50 bg-black/75 p-5 shadow-[0_0_30px_rgba(34,211,238,0.12)]">
+            <div className="mt-7 rounded-xl border border-cyan-400/40 bg-black/75 p-4 shadow-[0_0_24px_rgba(34,211,238,0.10)]">
               <div className="mb-3 flex items-center justify-between text-xs uppercase tracking-[0.25em] text-cyan-300">
                 <span>Operator Console</span>
                 <span>Secure Access</span>
