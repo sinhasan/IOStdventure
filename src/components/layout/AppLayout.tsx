@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Outlet, Link, useNavigate, Navigate } from "react-router-dom";
-import ProcessRibbon from "@/components/crm/ProcessRibbon";
 import BloombergBackground from "@/components/crm/BloombergBackground";
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 
@@ -42,36 +41,62 @@ export default function AppLayout() {
             TD Venture Deal Desk
           </Link>
 
-          <nav className="flex gap-5 text-sm items-center">
-            <Link to="/">Dashboard</Link>
-            <Link to="/matches">Opportunities</Link>
-            <Link to="/payments">Payments</Link>
-            <Link to="/profiles">Profile</Link>
-
-            <a
-              href="https://staging.tdventure.vc"
-              target="_blank"
-              rel="noreferrer"
-              className="motion-safe:animate-pulse rounded-md bg-lime-400 px-4 py-2 font-bold text-black shadow-[0_0_24px_rgba(163,255,18,0.8)] transition hover:bg-lime-300"
+          <nav className="flex items-center gap-6 text-sm">
+            <Link
+              to="/"
+              className="font-medium text-gray-500 transition-colors hover:text-white"
             >
-              Private Marketplace ↗
-            </a>
+              Dashboard
+            </Link>
+
+            <Link
+              to="/matches"
+              className="font-medium text-gray-500 transition-colors hover:text-white"
+            >
+              Opportunities
+            </Link>
+
+            <Link
+              to="/payments"
+              className="font-medium text-gray-500 transition-colors hover:text-white"
+            >
+              Payments
+            </Link>
+
           </nav>
         </div>
 
-        <div>
-          {user ? (
-            <>
-              <span className="mr-4">Welcome, {user?.full_name || user?.email}</span>
-              <button type="button" onClick={logout}>Logout</button>
-            </>
-          ) : (
-            <Link to="/login">Login</Link>
-          )}
+        <div className="flex items-center gap-5">
+          <a
+            href="https://staging.tdventure.vc/app"
+            target="_blank"
+            rel="noreferrer"
+            className="motion-safe:animate-pulse rounded-md bg-lime-400 px-4 py-2 text-sm font-bold text-black shadow-[0_0_24px_rgba(163,255,18,0.75)] transition hover:bg-lime-300"
+          >
+            Private Marketplace ↗
+          </a>
+
+          <div>
+            {user ? (
+              <>
+                <span className="mr-4">
+                  Welcome, {user?.full_name || user?.email}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="font-semibold text-white transition hover:text-lime-300"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <Link to="/login">Login</Link>
+            )}
+          </div>
         </div>
       </header>
-
-      <ProcessRibbon />
 
       <main className="relative z-10 flex-1 p-4">
         <Outlet />

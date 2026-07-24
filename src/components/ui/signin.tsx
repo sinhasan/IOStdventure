@@ -45,6 +45,15 @@ export default function SignIn() {
       <div className="absolute left-0 top-0 h-full w-1/3 bg-gradient-to-r from-lime-500/15 to-transparent" />
       <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-cyan-500/15 to-transparent" />
 
+      <a
+        href="https://staging.tdventure.vc/app"
+        target="_blank"
+        rel="noreferrer"
+        className="motion-safe:animate-pulse absolute right-6 top-6 z-20 rounded-md bg-lime-400 px-4 py-2.5 text-sm font-bold text-black shadow-[0_0_28px_rgba(163,255,18,0.72)] transition hover:bg-lime-300"
+      >
+        Private Marketplace ↗
+      </a>
+
       <div className="relative z-10 flex min-h-screen items-center justify-center px-6 py-10">
         <div className="grid w-full max-w-6xl gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
           <section className="hidden lg:block">
@@ -147,6 +156,35 @@ export default function SignIn() {
               >
                 {loading ? 'Signing in...' : 'Enter Deal Desk'}
               </button>
+
+              <div className="mt-6 border-t border-white/10 pt-5">
+                <div className="text-center">
+                  <div className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-500">
+                    New to TD Venture
+                  </div>
+
+                  <p className="mt-2 text-sm leading-relaxed text-gray-400">
+                    Deal Desk access requires a registered Startup or
+                    Investor profile.
+                  </p>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <a
+                    href="https://staging.tdventure.vc/signup/startup"
+                    className="inline-flex min-h-12 items-center justify-center rounded-md border border-lime-400/60 bg-lime-400/10 px-3 text-center text-xs font-bold text-lime-300 transition hover:bg-lime-400 hover:text-black"
+                  >
+                    Apply as Startup
+                  </a>
+
+                  <a
+                    href="https://staging.tdventure.vc/signup/investor"
+                    className="inline-flex min-h-12 items-center justify-center rounded-md border border-cyan-400/60 bg-cyan-400/10 px-3 text-center text-xs font-bold text-cyan-200 transition hover:bg-cyan-400 hover:text-black"
+                  >
+                    Apply as Investor
+                  </a>
+                </div>
+              </div>
 
               <div className="mt-5 flex items-center justify-between border-t border-white/10 pt-4 text-xs text-gray-600">
                 <span>CRM.TDVENTURE.VC</span>
