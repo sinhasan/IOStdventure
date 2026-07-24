@@ -1042,11 +1042,25 @@ export default function OpportunitiesPage() {
       {isLoading ? (
         <p className="text-lime-300">Loading Opportunities...</p>
       ) : opportunities.length === 0 ? (
-        <div className="border border-dashed border-lime-500/40 bg-black/70 rounded-lg p-8">
-          <h2 className="text-xl font-semibold mb-2">No opportunities yet.</h2>
-          <p className="text-sm text-gray-400">
-            Start from Discover, choose a high-quality AI match, and click Start Opportunity.
+        <div className="rounded-lg border border-dashed border-lime-500/40 bg-black/70 p-8">
+          <h2 className="mb-2 text-xl font-semibold">
+            No active opportunities yet.
+          </h2>
+
+          <p className="max-w-2xl text-sm text-gray-400">
+            Review your matching opportunities in Private Marketplace and
+            start an engagement. The opportunity will then appear here for
+            pipeline, communication and execution.
           </p>
+
+          <a
+            href="https://staging.tdventure.vc"
+            target="_blank"
+            rel="noreferrer"
+            className="mt-5 inline-flex rounded-md bg-lime-400 px-4 py-2 text-sm font-bold text-black shadow-[0_0_22px_rgba(163,255,18,0.75)] transition hover:bg-lime-300"
+          >
+            View Matching Opportunities ↗
+          </a>
         </div>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">

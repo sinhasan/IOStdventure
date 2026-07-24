@@ -39,7 +39,7 @@ export default function DashboardPage() {
         <div className="border border-lime-500/60 rounded-lg p-6 max-w-2xl bg-black/70">
           <h2 className="text-xl font-semibold mb-2">Please login to start</h2>
           <p className="text-sm text-gray-400 mb-4">
-            Register, discover, connect, reveal and manage opportunities in Deal Flow.
+            Manage active opportunities, engagement, communications and execution in one workspace.
           </p>
           <Link to="/login" className="inline-block rounded-md bg-lime-400 text-black px-5 py-2 font-semibold">
             Login
@@ -81,7 +81,7 @@ export default function DashboardPage() {
           <div className="border border-lime-500/60 rounded-md p-4 bg-black/70">
             <h2 className="font-medium mb-2">Process Flow</h2>
             <p className="text-sm text-gray-400 mb-4">
-              Register → Discover → Connect → Reveal → Deal Flow
+              Private Marketplace → Conversion → Start Engagement → Deal Desk
             </p>
 
             <button

@@ -9,7 +9,6 @@ export default function AppLayout() {
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   const hasToken = Boolean(localStorage.getItem("tdventure_token"));
   const navigate = useNavigate();
-  const [openMenu, setOpenMenu] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoadingTimedOut(true), 1500);
@@ -33,66 +32,30 @@ export default function AppLayout() {
     );
   }
 
-  const closeMenus = () => setOpenMenu(null);
-
   return (
     <div className="relative min-h-screen flex flex-col text-white">
       <BloombergBackground />
 
       <header className="relative z-20 border-b border-lime-500/70 bg-black/95 p-4 flex justify-between items-center">
         <div className="flex items-center gap-7">
-          <Link to="/" className="text-xl font-bold text-lime-400" onClick={closeMenus}>
+          <Link to="/" className="text-xl font-bold text-lime-400">
             TD Venture Deal Desk
           </Link>
 
           <nav className="flex gap-5 text-sm items-center">
-            <Link to="/" onClick={closeMenus}>Dashboard</Link>
+            <Link to="/">Dashboard</Link>
+            <Link to="/matches">Opportunities</Link>
+            <Link to="/payments">Payments</Link>
+            <Link to="/profiles">Profile</Link>
 
-            <div className="relative">
-              <button
-                type="button"
-                className="text-lime-300"
-                onClick={() => setOpenMenu(openMenu === "register" ? null : "register")}
-              >
-                Register ▾
-              </button>
-
-              {openMenu === "register" && (
-                <div className="absolute left-0 mt-2 min-w-44 rounded-md border border-lime-500/50 bg-black p-2 shadow-lg">
-                  <Link className="block px-3 py-2 hover:bg-lime-400 hover:text-black" to="/startups" onClick={closeMenus}>
-                    Startup
-                  </Link>
-                  <Link className="block px-3 py-2 hover:bg-lime-400 hover:text-black" to="/investors" onClick={closeMenus}>
-                    Investor
-                  </Link>
-                </div>
-              )}
-            </div>
-
-            <div className="relative">
-              <button
-                type="button"
-                className="text-lime-300"
-                onClick={() => setOpenMenu(openMenu === "discover" ? null : "discover")}
-              >
-                Discover ▾
-              </button>
-
-              {openMenu === "discover" && (
-                <div className="absolute left-0 mt-2 min-w-48 rounded-md border border-lime-500/50 bg-black p-2 shadow-lg">
-                  <Link className="block px-3 py-2 hover:bg-lime-400 hover:text-black" to="/discover/startups" onClick={closeMenus}>
-                    Startups
-                  </Link>
-                  <Link className="block px-3 py-2 hover:bg-lime-400 hover:text-black" to="/discover/investors" onClick={closeMenus}>
-                    Investors
-                  </Link>
-                </div>
-              )}
-            </div>
-
-            <Link to="/matches" onClick={closeMenus}>Opportunities</Link>
-            <Link to="/payments" onClick={closeMenus}>Payments</Link>
-            <Link to="/profiles" onClick={closeMenus}>Profile</Link>
+            <a
+              href="https://staging.tdventure.vc"
+              target="_blank"
+              rel="noreferrer"
+              className="motion-safe:animate-pulse rounded-md bg-lime-400 px-4 py-2 font-bold text-black shadow-[0_0_24px_rgba(163,255,18,0.8)] transition hover:bg-lime-300"
+            >
+              Private Marketplace ↗
+            </a>
           </nav>
         </div>
 
@@ -110,7 +73,7 @@ export default function AppLayout() {
 
       <ProcessRibbon />
 
-      <main className="relative z-10 flex-1 p-4" onClick={closeMenus}>
+      <main className="relative z-10 flex-1 p-4">
         <Outlet />
 
         <footer className="fixed bottom-0 left-0 right-0 z-40 border-t border-lime-500/30 bg-black/95 px-4 py-2 text-[11px] text-gray-400">
