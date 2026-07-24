@@ -54,7 +54,10 @@ export default function SignIn() {
 
             <h1 className="max-w-3xl text-6xl font-bold leading-tight tracking-tight drop-shadow-[0_0_22px_rgba(163,255,18,0.16)]">
               Startup Capital CRM
-              <span className="block text-lime-300 drop-shadow-[0_0_18px_rgba(163,255,18,0.35)]">Deal Desk Command Center</span>
+              <span className="block text-lime-300 drop-shadow-[0_0_18px_rgba(163,255,18,0.35)]">Deal Desk{" "}
+                  <span className="text-[#98A2B3]">
+                    Command Center
+                  </span></span>
             </h1>
 
             <p className="mt-6 max-w-2xl text-xl font-medium leading-relaxed text-gray-300">
