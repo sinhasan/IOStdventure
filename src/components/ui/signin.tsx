@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BloombergBackground from '@/components/crm/BloombergBackground';
+import {
+  readDealDeskApiError,
+  verifyDealDeskAccess
+} from '@/lib/dealDeskAccess';
 
 export default function SignIn() {
   const [email, setEmail] = useState('');
@@ -21,14 +25,47 @@ export default function SignIn() {
 
       const res = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: {
+          'Content-Type':
+            'application/x-www-form-urlencoded'
+        },
         body,
       });
 
-      if (!res.ok) throw new Error('Login failed');
+      if (!res.ok) {
+        throw new Error(
+          await readDealDeskApiError(
+            res,
+            'Login failed'
+          )
+        );
+      }
 
       const data = await res.json();
-      if (data.access_token) localStorage.setItem('tdventure_token', data.access_token);
+      const token = String(
+        data?.access_token || ''
+      ).trim();
+
+      if (!token) {
+        throw new Error(
+          'Deal Desk login did not return a valid session.'
+        );
+      }
+
+      localStorage.setItem(
+        'tdventure_token',
+        token
+      );
+
+      try {
+        await verifyDealDeskAccess(token);
+      } catch (accessError) {
+        localStorage.removeItem(
+          'tdventure_token'
+        );
+
+        throw accessError;
+      }
 
       navigate('/');
     } catch (err: any) {
@@ -44,15 +81,6 @@ export default function SignIn() {
       <div className="absolute inset-0 bg-black/40" />
       <div className="absolute left-0 top-0 h-full w-1/3 bg-gradient-to-r from-lime-500/15 to-transparent" />
       <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-cyan-500/15 to-transparent" />
-
-      <a
-        href="https://staging.tdventure.vc/app"
-        target="_blank"
-        rel="noreferrer"
-        className="motion-safe:animate-pulse absolute right-6 top-6 z-20 rounded-md bg-lime-400 px-4 py-2.5 text-sm font-bold text-black shadow-[0_0_28px_rgba(163,255,18,0.72)] transition hover:bg-lime-300"
-      >
-        Private Marketplace ↗
-      </a>
 
       <div className="relative z-10 flex min-h-screen items-center justify-center px-6 py-10">
         <div className="grid w-full max-w-5xl gap-8 lg:grid-cols-[1.08fr_0.92fr] lg:items-center">
@@ -102,6 +130,26 @@ export default function SignIn() {
           </section>
 
           <section className="mx-auto w-full max-w-md">
+            <div className="mb-4 grid grid-cols-2 gap-3">
+              <a
+                href="https://conversion.tdventure.vc/"
+                target="_blank"
+                rel="noreferrer"
+                className="motion-safe:animate-[pulse_3s_ease-in-out_infinite] inline-flex min-h-11 items-center justify-center rounded-md border border-cyan-300/70 bg-cyan-400/10 px-3 text-center text-xs font-bold text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.24)] transition hover:bg-cyan-300 hover:text-black"
+              >
+                ← Conversion
+              </a>
+
+              <a
+                href="https://staging.tdventure.vc/app"
+                target="_blank"
+                rel="noreferrer"
+                className="motion-safe:animate-[pulse_3s_ease-in-out_infinite] inline-flex min-h-11 items-center justify-center rounded-md border border-lime-300/70 bg-lime-400/10 px-3 text-center text-xs font-bold text-lime-200 shadow-[0_0_22px_rgba(163,255,18,0.24)] transition hover:bg-lime-300 hover:text-black"
+              >
+                Private Marketplace →
+              </a>
+            </div>
+
             <div className="mb-5 text-center lg:hidden">
               <div className="text-xs uppercase tracking-[0.35em] text-lime-300">TD Venture CRM</div>
               <h1 className="mt-3 text-3xl font-semibold">Startup Capital CRM</h1>

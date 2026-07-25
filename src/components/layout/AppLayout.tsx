@@ -2,33 +2,101 @@ import { useEffect, useState } from "react";
 import { Outlet, Link, useNavigate, Navigate } from "react-router-dom";
 import BloombergBackground from "@/components/crm/BloombergBackground";
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import {
+  verifyDealDeskAccess
+} from '@/lib/dealDeskAccess';
 
 export default function AppLayout() {
   const { data: user, isLoading, isError } = useCurrentUser();
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
-  const hasToken = Boolean(localStorage.getItem("tdventure_token"));
+  const hasToken = Boolean(
+    localStorage.getItem(
+      "tdventure_token"
+    )
+  );
+
+  const [accessState, setAccessState] =
+    useState<
+      'checking' |
+      'allowed' |
+      'denied'
+    >(
+      hasToken
+        ? 'checking'
+        : 'denied'
+    );
+
   const navigate = useNavigate();
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoadingTimedOut(true), 1500);
+    const timer = setTimeout(
+      () => setLoadingTimedOut(true),
+      1500
+    );
+
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const token = localStorage.getItem(
+      'tdventure_token'
+    );
+
+    if (!token) {
+      setAccessState('denied');
+      return;
+    }
+
+    setAccessState('checking');
+
+    void verifyDealDeskAccess(token)
+      .then(() => {
+        if (!cancelled) {
+          setAccessState('allowed');
+        }
+      })
+      .catch(() => {
+        localStorage.removeItem(
+          'tdventure_token'
+        );
+
+        if (!cancelled) {
+          setAccessState('denied');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasToken]);
 
   const logout = () => {
     localStorage.removeItem('tdventure_token');
     navigate('/login', { replace: true });
   };
 
-  if (!hasToken) {
+  if (
+    !hasToken ||
+    accessState === 'denied'
+  ) {
     return <Navigate to="/login" replace />;
   }
 
-  if (isLoading) {
+  if (
+    isLoading ||
+    accessState === 'checking'
+  ) {
     return (
       <div className="min-h-screen bg-black text-lime-300 flex items-center justify-center">
         Loading Deal Desk...
       </div>
     );
+  }
+
+  if (isError || !user) {
+    return <Navigate to="/login" replace />;
   }
 
   return (

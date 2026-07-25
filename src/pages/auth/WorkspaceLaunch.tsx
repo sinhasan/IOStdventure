@@ -6,6 +6,9 @@ import {
   Link,
   useNavigate
 } from 'react-router-dom';
+import {
+  verifyDealDeskAccess
+} from '@/lib/dealDeskAccess';
 
 const CANONICAL_EXCHANGE_URL =
   'https://staging.tdventure.vc/api/deal-desk/launch/exchange';
@@ -88,24 +91,14 @@ async function exchangeLaunchToken(
     token
   );
 
-  const verification = await fetch(
-    '/api/auth/me',
-    {
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${token}`
-      }
-    }
-  );
-
-  if (!verification.ok) {
+  try {
+    await verifyDealDeskAccess(token);
+  } catch (accessError) {
     localStorage.removeItem(
       'tdventure_token'
     );
 
-    throw new Error(
-      'Deal Desk could not verify the shared TD Venture session.'
-    );
+    throw accessError;
   }
 
   return token;
