@@ -134,36 +134,44 @@ export default function AppLayout() {
           </nav>
         </div>
 
-        <div className="flex items-center gap-5">
-          <a
-            href="https://staging.tdventure.vc/app"
-            target="_blank"
-            rel="noreferrer"
-            className="motion-safe:animate-pulse rounded-md bg-lime-400 px-4 py-2 text-sm font-bold text-black shadow-[0_0_24px_rgba(163,255,18,0.75)] transition hover:bg-lime-300"
-          >
-            Private Marketplace ↗
-          </a>
+          <div className="flex items-center gap-2">
+            <a
+              href="https://conversion.tdventure.vc/"
+              target="_blank"
+              rel="noreferrer"
+              title="Open Conversion"
+              className="motion-safe:animate-[pulse_3s_ease-in-out_infinite] inline-flex h-10 min-w-[130px] items-center justify-center rounded-md border border-cyan-300/70 bg-cyan-400/10 px-3 text-xs font-bold text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.24)] transition hover:bg-cyan-300 hover:text-black"
+            >
+              ← Conversion
+            </a>
 
-          <div>
-            {user ? (
-              <>
-                <span className="mr-4">
-                  Welcome, {user?.full_name || user?.email}
-                </span>
+            <div
+              title={user.email || user.full_name}
+              className="inline-flex h-10 max-w-[190px] items-center rounded-md border border-white/15 bg-white/[0.05] px-3"
+            >
+              <span className="truncate text-xs font-semibold text-white">
+                {user.full_name || user.email}
+              </span>
+            </div>
 
-                <button
-                  type="button"
-                  onClick={logout}
-                  className="font-semibold text-white transition hover:text-lime-300"
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <Link to="/login">Login</Link>
-            )}
+            <a
+              href="https://staging.tdventure.vc/app"
+              target="_blank"
+              rel="noreferrer"
+              title="Open Private Marketplace"
+              className="motion-safe:animate-[pulse_3s_ease-in-out_infinite] inline-flex h-10 min-w-[165px] items-center justify-center rounded-md border border-lime-300/70 bg-lime-400/10 px-3 text-xs font-bold text-lime-200 shadow-[0_0_22px_rgba(163,255,18,0.24)] transition hover:bg-lime-300 hover:text-black"
+            >
+              Private Marketplace →
+            </a>
+
+            <button
+              type="button"
+              onClick={logout}
+              className="h-10 rounded-md border border-white/15 bg-white/[0.04] px-3 text-xs font-semibold text-white transition hover:border-lime-300/60 hover:text-lime-300"
+            >
+              Logout
+            </button>
           </div>
-        </div>
       </header>
 
       <main className="relative z-10 flex-1 p-4">
