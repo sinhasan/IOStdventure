@@ -35,6 +35,16 @@ function scrubLaunchParameters(): void {
   );
 }
 
+function resolveLaunchDestination(): '/' | '/discover/startups' {
+  const requested = new URL(
+    window.location.href
+  ).searchParams.get('next');
+
+  return requested === '/discover/startups'
+    ? '/discover/startups'
+    : '/';
+}
+
 async function exchangeLaunchToken(
   rawLaunchToken: string
 ): Promise<string> {
@@ -181,6 +191,7 @@ export default function WorkspaceLaunch() {
 
   useEffect(() => {
     let cancelled = false;
+    const destination = resolveLaunchDestination();
 
     void initializeLaunch()
       .then(() => {
@@ -189,7 +200,7 @@ export default function WorkspaceLaunch() {
         );
 
         if (!cancelled) {
-          navigate('/', {
+          navigate(destination, {
             replace: true
           });
         }

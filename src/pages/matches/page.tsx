@@ -1,14 +1,30 @@
+import { DueDiligenceWorkroom } from '@/components/DueDiligenceWorkroom';
+import { InvestmentDecisionControls } from '@/components/InvestmentDecisionControls';
+import { MeetingLifecycleControls } from '@/components/MeetingLifecycleControls';
+import { Gate0InvestorDocuments } from '@/components/Gate0InvestorDocuments';
+import { Gate0ConversionLaunch } from '@/components/Gate0ConversionLaunch';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { getDealFlow, updateDealFlowStatus, getOpportunityTimeline, getChiefOfStaffBrief, getOpportunityNotes, addOpportunityNote } from '@/lib/api';
+import {
+  getDealFlow,
+  updateDealFlowStatus,
+  getOpportunityTimeline,
+  getChiefOfStaffBrief,
+  getDealDeskBrief,
+  getOpportunityNotes,
+  addOpportunityNote,
+  getCurrentUser,
+  getMeetingCoordination,
+  updateGate0Requirement,
+  scheduleOpportunityMeeting,
+  sendInvestorInvitation,
+} from '@/lib/api';
 
 const stages = [
-  { key: 'interested', label: 'Interested' },
-  { key: 'payment_pending', label: 'Payment Pending' },
-  { key: 'payment_complete', label: 'Payment Complete' },
-  { key: 'investor_notified', label: 'Investor Notified' },
-  { key: 'waiting_response', label: 'Waiting Response' },
-  { key: 'accepted', label: 'Accepted' },
+  { key: 'interested', label: 'Opportunity Started' },
+  { key: 'investor_notified', label: 'Outreach Initiated' },
+  { key: 'waiting_response', label: 'Awaiting Response' },
+  { key: 'accepted', label: 'Meeting Requested' },
   { key: 'meeting_scheduled', label: 'Meeting Scheduled' },
   { key: 'due_diligence', label: 'Due Diligence' },
   { key: 'funded', label: 'Funded' },
@@ -22,6 +38,35 @@ const workspaceTabs = [
   { key: 'timeline', label: 'Timeline' },
 ];
 
+function evidenceScore(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const score = Number(value);
+  return Number.isFinite(score) ? score : null;
+}
+
+function scoreLabel(value: unknown, suffix = '') {
+  const score = evidenceScore(value);
+  return score === null ? 'Awaiting' : `${score}${suffix}`;
+}
+
+
+function gate0RequirementLabel(key: string) {
+  const labels: Record<string, string> = {
+    pitch_deck: 'Pitch Deck',
+    business_plan: 'Business Plan',
+    revenue_evidence: 'Revenue Evidence',
+    three_year_projections: '3-Year Projections',
+  };
+
+  return labels[key] || key;
+}
+
+function gate0StatusLabel(status: string) {
+  if (status === 'verified') return 'Verified';
+  if (status === 'provided') return 'Provided';
+  return 'Awaiting';
+}
+
 function nextStage(current: string) {
   const index = stages.findIndex((s) => s.key === current);
   if (index < 0 || index >= stages.length - 1) return null;
@@ -29,6 +74,7 @@ function nextStage(current: string) {
 }
 
 function healthColor(status: string) {
+  if (status === 'delivery_issue') return 'text-red-300 border-red-400/70';
   if (status === 'funded') return 'text-lime-300 border-lime-400/70';
   if (['accepted', 'meeting_scheduled', 'due_diligence'].includes(status)) return 'text-blue-300 border-blue-400/70';
   if (['waiting_response', 'investor_notified'].includes(status)) return 'text-yellow-300 border-yellow-400/70';
@@ -36,53 +82,53 @@ function healthColor(status: string) {
 }
 
 function getPriority(opportunity: any) {
-  const confidence = Number(opportunity?.investment_confidence ?? 0);
-  const health = Number(opportunity?.health_score ?? 0);
+  const confidence = evidenceScore(opportunity?.opportunity_score);
+  const health = evidenceScore(opportunity?.health_score);
   const status = opportunity?.status || 'interested';
 
+  if (status === 'delivery_issue') return 'High';
   if (['payment_pending', 'waiting_response'].includes(status)) return 'High';
-  if (confidence >= 75 && health >= 70) return 'High';
-  if (confidence >= 55 || health >= 50) return 'Medium';
+  if (confidence !== null && health !== null && confidence >= 75 && health >= 70) return 'High';
+  if ((confidence !== null && confidence >= 55) || (health !== null && health >= 50)) return 'Medium';
   return 'Watch';
 }
 
 function getWorkspaceAction(opportunity: any) {
   const status = opportunity?.status || 'interested';
 
-  if (status === 'interested') return 'Qualify the match and confirm founder readiness.';
-  if (status === 'payment_pending') return 'Complete payment or reveal before investor notification.';
-  if (status === 'payment_complete') return 'Queue investor notification from Deal Desk.';
-  if (status === 'investor_notified') return 'Monitor investor response and prepare follow-up.';
-  if (status === 'waiting_response') return 'Follow up with investor and escalate if SLA is breached.';
-  if (status === 'accepted') return 'Schedule founder-investor meeting.';
+  if (status === 'interested') return opportunity?.direction === 'investor_to_startup' ? 'TD Venture to contact the founder and confirm interest in the introduction.' : 'TD Venture to contact the investor through a protected Opportunity invitation.';
+  if (status === 'payment_pending') return 'Complete qualification and prepare protected outreach.';
+  if (status === 'payment_complete') return 'Initiate protected outreach from Deal Desk.';
+  if (status === 'investor_notified') return "Monitor the contacted party's response and prepare follow-up.";
+  if (status === 'delivery_issue') return opportunity?.next_best_action || opportunity?.next_action || 'Verify the recipient email or communication route before any further outreach.';
+  if (status === 'waiting_response') return 'Follow up with the contacted party if the response window is breached.';
+  if (status === 'accepted') return 'Coordinate the first founder-investor meeting.';
   if (status === 'meeting_scheduled') return 'Prepare meeting brief and diligence questions.';
   if (status === 'due_diligence') return 'Collect documents and prepare IC recommendation.';
-  if (status === 'funded') return 'Capture outcome, terms and founder testimonial.';
+  if (status === 'funded') return 'Record the final outcome and move to portfolio tracking.';
 
   return opportunity?.next_best_action || opportunity?.next_action || 'Review opportunity and decide next step.';
 }
 
 function getDocumentReadiness(opportunity: any) {
-  const founderTrust = Number(opportunity?.founder_trust_score ?? 50);
-  const confidence = Number(opportunity?.investment_confidence ?? 0);
-  const status = opportunity?.status || 'interested';
+  const readiness = opportunity?.document_readiness || {};
 
   return [
     {
       label: 'Pitch deck',
-      ready: founderTrust >= 60 || confidence >= 60 || ['due_diligence', 'funded'].includes(status),
+      ready: readiness?.pitch_deck?.status === 'ready',
     },
     {
       label: 'Financial model',
-      ready: confidence >= 70 || ['due_diligence', 'funded'].includes(status),
+      ready: readiness?.financial_model?.status === 'ready',
     },
     {
       label: 'Founder profile',
-      ready: Boolean(opportunity?.startup_name || opportunity?.founder_name),
+      ready: readiness?.founder_profile?.status === 'ready',
     },
     {
       label: 'Investor memo',
-      ready: ['accepted', 'meeting_scheduled', 'due_diligence', 'funded'].includes(status),
+      ready: readiness?.investor_memo?.status === 'ready',
     },
   ];
 }
@@ -101,12 +147,12 @@ function buildInvestmentMemo(opportunity: any) {
     `Capital Ask: ${opportunity?.ask || 'Not disclosed'}`,
     `Current Status: ${stages.find((s) => s.key === status)?.label || status}`,
     ``,
-    `Investment Confidence: ${opportunity?.investment_confidence ?? 0}%`,
-    `AI Match: ${opportunity?.match_score || 0}%`,
-    `Health Score: ${opportunity?.health_score ?? 0}`,
-    `Risk: ${opportunity?.investment_risk || 'Medium'}`,
-    `Founder Trust: ${opportunity?.founder_trust_score ?? 50}`,
-    `Investor Trust: ${opportunity?.investor_trust_score ?? 50}`,
+    `Opportunity Qualification: ${scoreLabel(opportunity?.opportunity_score, '%')}`,
+    `Match Fit: ${scoreLabel(opportunity?.match_score, '%')}`,
+    `Health Score: ${scoreLabel(opportunity?.health_score)}`,
+    `Risk: ${opportunity?.investment_risk || 'Awaiting'}`,
+    `Founder Trust: ${scoreLabel(opportunity?.founder_trust_score)}`,
+    `Investor Trust: ${scoreLabel(opportunity?.investor_trust_score)}`,
     ``,
     `Next Best Action: ${getWorkspaceAction(opportunity)}`,
     ``,
@@ -122,13 +168,25 @@ function buildFollowUpMessage(opportunity: any) {
   const code = opportunity?.opportunity_code || 'this opportunity';
   const nextAction = getWorkspaceAction(opportunity);
 
+  if (status === 'delivery_issue') {
+    return [
+      `Delivery issue for ${code}.`,
+      ``,
+      `Do not send another follow-up until the recipient email or communication route has been verified.`,
+      ``,
+      `Next action: ${nextAction}`,
+      ``,
+      `TD Venture Deal Desk`,
+    ].join('\n');
+  }
+
   if (status === 'payment_pending' || status === 'interested') {
     return [
       `Hi,`,
       ``,
       `Quick update on ${code}: ${startup} is currently at the ${opportunity?.stage || 'current'} stage in ${opportunity?.sector || opportunity?.focus_sectors || 'the relevant sector'}.`,
       ``,
-      `The next step is to complete the payment / reveal process so that the opportunity can move forward in the TD Venture deal workflow.`,
+      `TD Venture is coordinating the next outreach step. Contact details remain protected until engagement and a TD Venture-coordinated introduction.`,
       ``,
       `Next action: ${nextAction}`,
       ``,
@@ -143,7 +201,7 @@ function buildFollowUpMessage(opportunity: any) {
       ``,
       `Following up on ${code} between ${startup} and ${investor}.`,
       ``,
-      `The opportunity has an Investment Confidence of ${opportunity?.investment_confidence ?? 0}% and is currently awaiting response / next movement.`,
+      `The opportunity qualification is ${scoreLabel(opportunity?.opportunity_score, '%')} and is currently awaiting response / next movement.`,
       ``,
       `Next action: ${nextAction}`,
       ``,
@@ -201,14 +259,14 @@ function buildFounderFollowUpPack(opportunity: any) {
   const investor = opportunity?.firm || 'the investor';
   const founder = opportunity?.founder_name || 'Founder';
   const nextAction = getWorkspaceAction(opportunity);
-  const confidence = opportunity?.investment_confidence ?? 0;
+  const qualification = scoreLabel(opportunity?.opportunity_score, '%');
 
   return [
     `Hi ${founder},`,
     '',
     `Quick update on ${code}: ${startup} is now active in the TD Venture opportunity workspace with ${investor}.`,
     '',
-    `Current signal strength: ${confidence}% investment confidence.`,
+    `Current evidence-backed qualification: ${qualification}.`,
     `Current stage: ${opportunity?.stage || 'Not disclosed'}.`,
     `Capital ask: ${opportunity?.ask || 'Not disclosed'}.`,
     '',
@@ -226,8 +284,8 @@ function buildInvestorFollowUpPack(opportunity: any) {
   const startup = opportunity?.startup_name || 'the startup';
   const investor = opportunity?.firm || 'Investor';
   const nextAction = getWorkspaceAction(opportunity);
-  const confidence = opportunity?.investment_confidence ?? 0;
-  const matchScore = opportunity?.match_score || 0;
+  const qualification = scoreLabel(opportunity?.opportunity_score, '%');
+  const matchScore = scoreLabel(opportunity?.match_score, '%');
 
   return [
     `Hi ${investor} Team,`,
@@ -238,9 +296,9 @@ function buildInvestorFollowUpPack(opportunity: any) {
     `Sector: ${opportunity?.sector || opportunity?.focus_sectors || 'Not disclosed'}`,
     `Stage: ${opportunity?.stage || 'Not disclosed'}`,
     `Capital ask: ${opportunity?.ask || 'Not disclosed'}`,
-    `AI match score: ${matchScore}%`,
-    `Investment confidence: ${confidence}%`,
-    `Risk view: ${opportunity?.investment_risk || 'Medium'}`,
+    `Match Fit: ${matchScore}`,
+    `Opportunity qualification: ${qualification}`,
+    `Risk view: ${opportunity?.investment_risk || 'Awaiting evidence'}`,
     '',
     `Suggested next step: ${nextAction}`,
     '',
@@ -266,10 +324,10 @@ function buildInternalDealDeskPack(opportunity: any) {
     `Investor: ${investor}`,
     `Priority: ${priority}`,
     `Status: ${opportunity?.status || 'interested'}`,
-    `Investment confidence: ${opportunity?.investment_confidence ?? 0}%`,
-    `Health score: ${opportunity?.health_score ?? 0}`,
-    `Founder trust: ${opportunity?.founder_trust_score ?? 50}`,
-    `Investor trust: ${opportunity?.investor_trust_score ?? 50}`,
+    `Opportunity qualification: ${scoreLabel(opportunity?.opportunity_score, '%')}`,
+    `Health score: ${scoreLabel(opportunity?.health_score)}`,
+    `Founder trust: ${scoreLabel(opportunity?.founder_trust_score)}`,
+    `Investor trust: ${scoreLabel(opportunity?.investor_trust_score)}`,
     '',
     `Internal next action: ${nextAction}`,
     '',
@@ -283,10 +341,10 @@ function buildInternalDealDeskPack(opportunity: any) {
 
 
 function getICReadinessItems(opportunity: any, notes: any[] = []) {
-  const confidence = Number(opportunity?.investment_confidence || 0);
-  const matchScore = Number(opportunity?.match_score || 0);
-  const founderTrust = Number(opportunity?.founder_trust_score ?? 50);
-  const investorTrust = Number(opportunity?.investor_trust_score ?? 50);
+  const qualification = evidenceScore(opportunity?.opportunity_score);
+  const matchScore = evidenceScore(opportunity?.match_score);
+  const founderTrust = evidenceScore(opportunity?.founder_trust_score);
+  const investorTrust = evidenceScore(opportunity?.investor_trust_score);
 
   return [
     {
@@ -305,19 +363,25 @@ function getICReadinessItems(opportunity: any, notes: any[] = []) {
       detail: opportunity?.ask || 'Capital ask not available',
     },
     {
-      label: 'AI match quality acceptable',
-      ready: matchScore >= 70,
-      detail: `${matchScore || 0}% AI match score`,
+      label: 'Match Fit is strong',
+      ready: matchScore !== null && matchScore >= 70,
+      detail: matchScore === null ? 'Awaiting Match Fit evidence' : `${matchScore}% Match Fit`,
     },
     {
-      label: 'Investment confidence calculated',
-      ready: confidence >= 70,
-      detail: `${confidence || 0}% confidence · ${opportunity?.investment_risk || 'Medium'} risk`,
+      label: 'Opportunity qualification calculated',
+      ready: qualification !== null && qualification >= 50,
+      detail: qualification === null
+        ? 'Awaiting Conversion and AI evidence'
+        : `${qualification}% qualification · ${opportunity?.investment_risk || 'Awaiting'} risk`,
     },
     {
       label: 'Trust signals acceptable',
-      ready: founderTrust >= 50 && investorTrust >= 50,
-      detail: `Founder ${founderTrust} · Investor ${investorTrust}`,
+      ready:
+        founderTrust !== null &&
+        investorTrust !== null &&
+        founderTrust >= 50 &&
+        investorTrust >= 50,
+      detail: `Founder ${scoreLabel(founderTrust)} · Investor ${scoreLabel(investorTrust)}`,
     },
     {
       label: 'Internal note captured',
@@ -364,12 +428,12 @@ function buildICReviewNote(opportunity: any, notes: any[] = []) {
     `Current Stage: ${stages.find((s) => s.key === status)?.label || status}`,
     ``,
     `Investment View`,
-    `- Investment Confidence: ${opportunity?.investment_confidence ?? 0}%`,
-    `- AI Match Score: ${opportunity?.match_score || 0}%`,
-    `- Health Score: ${opportunity?.health_score ?? 0}`,
-    `- Risk: ${opportunity?.investment_risk || 'Medium'}`,
-    `- Founder Trust: ${opportunity?.founder_trust_score ?? 50}`,
-    `- Investor Trust: ${opportunity?.investor_trust_score ?? 50}`,
+    `- Opportunity Qualification: ${scoreLabel(opportunity?.opportunity_score, '%')}`,
+    `- Match Fit: ${scoreLabel(opportunity?.match_score, '%')}`,
+    `- Health Score: ${scoreLabel(opportunity?.health_score)}`,
+    `- Risk: ${opportunity?.investment_risk || 'Awaiting'}`,
+    `- Founder Trust: ${scoreLabel(opportunity?.founder_trust_score)}`,
+    `- Investor Trust: ${scoreLabel(opportunity?.investor_trust_score)}`,
     ``,
     `IC Readiness`,
     `- Readiness Score: ${readinessScore}%`,
@@ -438,8 +502,8 @@ function buildDecisionActionNote(opportunity: any, action: string, notes: any[] 
       ``,
       `Deal Desk should prepare this opportunity for IC review.`,
       `Current IC readiness: ${readiness}%`,
-      `Investment confidence: ${opportunity?.investment_confidence ?? 0}%`,
-      `Risk: ${opportunity?.investment_risk || 'Medium'}`,
+      `Opportunity qualification: ${scoreLabel(opportunity?.opportunity_score, '%')}`,
+      `Risk: ${opportunity?.investment_risk || 'Awaiting'}`,
       `Suggested next action: ${nextAction}`,
       ``,
       `Logged from TD Venture IOS Quick Actions.`,
@@ -472,16 +536,22 @@ function getOpportunityStatusSignal(status: string) {
 }
 
 function getOpportunityOperatingScore(opportunity: any, notes: any[] = []) {
-  const confidence = Number(opportunity?.investment_confidence || 0);
-  const health = Number(opportunity?.health_score || 0);
-  const founderTrust = Number(opportunity?.founder_trust_score ?? 50);
-  const investorTrust = Number(opportunity?.investor_trust_score ?? 50);
+  const qualification = evidenceScore(opportunity?.opportunity_score);
+  const health = evidenceScore(opportunity?.health_score);
+  const founderTrust = evidenceScore(opportunity?.founder_trust_score);
+  const investorTrust = evidenceScore(opportunity?.investor_trust_score);
+  if (
+    qualification === null ||
+    health === null ||
+    founderTrust === null ||
+    investorTrust === null
+  ) return null;
   const icReadiness = getICReadinessScore(opportunity, notes);
-  const notesSignal = Array.isArray(notes) && notes.length > 0 ? 100 : 35;
+  const notesSignal = Array.isArray(notes) && notes.length > 0 ? 100 : 0;
   const statusSignal = getOpportunityStatusSignal(opportunity?.status || 'interested');
 
   return clampOperatingScore(
-    confidence * 0.24 +
+    qualification * 0.24 +
       health * 0.18 +
       founderTrust * 0.14 +
       investorTrust * 0.14 +
@@ -491,7 +561,8 @@ function getOpportunityOperatingScore(opportunity: any, notes: any[] = []) {
   );
 }
 
-function getOpportunityOperatingGrade(score: number) {
+function getOpportunityOperatingGrade(score: number | null) {
+  if (score === null) return 'Awaiting evidence';
   if (score >= 85) return 'Ready to accelerate';
   if (score >= 70) return 'Healthy opportunity';
   if (score >= 55) return 'Needs movement';
@@ -500,41 +571,41 @@ function getOpportunityOperatingGrade(score: number) {
 }
 
 function getOpportunityOperatingBreakdown(opportunity: any, notes: any[] = []) {
-  const confidence = Number(opportunity?.investment_confidence || 0);
-  const health = Number(opportunity?.health_score || 0);
-  const founderTrust = Number(opportunity?.founder_trust_score ?? 50);
-  const investorTrust = Number(opportunity?.investor_trust_score ?? 50);
+  const qualification = evidenceScore(opportunity?.opportunity_score);
+  const health = evidenceScore(opportunity?.health_score);
+  const founderTrust = evidenceScore(opportunity?.founder_trust_score);
+  const investorTrust = evidenceScore(opportunity?.investor_trust_score);
   const icReadiness = getICReadinessScore(opportunity, notes);
-  const notesSignal = Array.isArray(notes) && notes.length > 0 ? 100 : 35;
+  const notesSignal = Array.isArray(notes) && notes.length > 0 ? 100 : 0;
   const statusSignal = getOpportunityStatusSignal(opportunity?.status || 'interested');
 
   return [
     {
-      label: 'Investment Confidence',
-      value: confidence,
+      label: 'Opportunity Qualification',
+      value: qualification,
       weight: '24%',
-      ready: confidence >= 70,
-      detail: 'AI confidence from match, trust and deal signals.',
+      ready: qualification !== null && qualification >= 50,
+      detail: 'Agreed Match, Conversion and AI evidence qualification.',
     },
     {
       label: 'Health Score',
       value: health,
       weight: '18%',
-      ready: health >= 70,
+      ready: health !== null && health >= 70,
       detail: 'Operational health of the current opportunity.',
     },
     {
       label: 'Founder Trust',
       value: founderTrust,
       weight: '14%',
-      ready: founderTrust >= 60,
+      ready: founderTrust !== null && founderTrust >= 60,
       detail: 'Founder-side profile and credibility signal.',
     },
     {
       label: 'Investor Trust',
       value: investorTrust,
       weight: '14%',
-      ready: investorTrust >= 60,
+      ready: investorTrust !== null && investorTrust >= 60,
       detail: 'Investor-side quality and fit signal.',
     },
     {
@@ -573,16 +644,18 @@ function buildOperatingScoreNote(opportunity: any, notes: any[] = []) {
     `Opportunity: ${code}`,
     `Startup: ${opportunity?.startup_name || 'Protected Startup'}`,
     `Investor: ${opportunity?.firm || 'Protected Investor'}`,
-    `Operating Score: ${score}/100`,
+    `Operating Score: ${score === null ? 'Awaiting evidence' : `${score}/100`}`,
     `Grade: ${grade}`,
     `Priority: ${getPriority(opportunity)}`,
     `Next Best Action: ${getWorkspaceAction(opportunity)}`,
     '',
     'Score Breakdown:',
-    ...breakdown.map((item) => `- ${item.label}: ${item.value}/100 · Weight ${item.weight} · ${item.ready ? 'OK' : 'Needs attention'}`),
+    ...breakdown.map((item) => `- ${item.label}: ${scoreLabel(item.value, '/100')} · Weight ${item.weight} · ${item.ready ? 'OK' : 'Needs attention'}`),
     '',
     'Chief-of-Staff Instruction:',
-    score >= 85
+    score === null
+      ? '- Await the missing evidence. Do not infer an operating score.'
+      : score >= 85
       ? '- Accelerate this opportunity. Prepare meeting / diligence / IC motion.'
       : score >= 70
       ? '- Keep momentum. Close any missing readiness items and monitor next action.'
@@ -596,38 +669,38 @@ function buildOperatingScoreNote(opportunity: any, notes: any[] = []) {
 
 function getOpportunityRiskRadar(opportunity: any, notes: any[] = []) {
   const risks: any[] = [];
-  const confidence = Number(opportunity?.investment_confidence || 0);
-  const health = Number(opportunity?.health_score || 0);
-  const founderTrust = Number(opportunity?.founder_trust_score ?? 50);
-  const investorTrust = Number(opportunity?.investor_trust_score ?? 50);
+  const qualification = evidenceScore(opportunity?.opportunity_score);
+  const health = evidenceScore(opportunity?.health_score);
+  const founderTrust = evidenceScore(opportunity?.founder_trust_score);
+  const investorTrust = evidenceScore(opportunity?.investor_trust_score);
   const icReadiness = getICReadinessScore(opportunity, notes);
   const status = opportunity?.status || 'interested';
   const docs = getDocumentReadiness(opportunity);
 
-  if (confidence < 55) {
+  if (qualification !== null && qualification < 30) {
     risks.push({
-      label: 'Low Investment Confidence',
+      label: 'Low Opportunity Qualification',
       severity: 'High',
-      detail: `${confidence}% confidence. This opportunity needs stronger match, trust or traction signals.`,
+      detail: `${qualification}% qualification. This opportunity remains Match Only.`,
       action: 'Review fit before spending more Deal Desk time.',
     });
-  } else if (confidence < 70) {
+  } else if (qualification !== null && qualification < 50) {
     risks.push({
-      label: 'Moderate Investment Confidence',
+      label: 'Developing Opportunity Qualification',
       severity: 'Medium',
-      detail: `${confidence}% confidence. Good enough to monitor, but not yet IC-ready.`,
-      action: 'Strengthen profile and confirm investor mandate fit.',
+      detail: `${qualification}% qualification. The opportunity is developing but has not reached TD Qualification.`,
+      action: 'Strengthen evidence and confirm investor mandate fit.',
     });
   }
 
-  if (health < 50) {
+  if (health !== null && health < 50) {
     risks.push({
       label: 'Weak Opportunity Health',
       severity: 'High',
       detail: `Health score is ${health}. Workflow may be stalled or incomplete.`,
       action: 'Add a note, clarify status and force the next movement.',
     });
-  } else if (health < 70) {
+  } else if (health !== null && health < 70) {
     risks.push({
       label: 'Opportunity Needs Movement',
       severity: 'Medium',
@@ -636,14 +709,14 @@ function getOpportunityRiskRadar(opportunity: any, notes: any[] = []) {
     });
   }
 
-  if (founderTrust < 50) {
+  if (founderTrust !== null && founderTrust < 50) {
     risks.push({
       label: 'Founder Trust Gap',
       severity: 'High',
       detail: `Founder trust is ${founderTrust}. The founder-side profile may not be strong enough.`,
       action: 'Request better profile, pitch deck, traction proof and founder background.',
     });
-  } else if (founderTrust < 65) {
+  } else if (founderTrust !== null && founderTrust < 65) {
     risks.push({
       label: 'Founder Trust Can Improve',
       severity: 'Medium',
@@ -652,14 +725,14 @@ function getOpportunityRiskRadar(opportunity: any, notes: any[] = []) {
     });
   }
 
-  if (investorTrust < 50) {
+  if (investorTrust !== null && investorTrust < 50) {
     risks.push({
       label: 'Investor Trust Gap',
       severity: 'High',
       detail: `Investor trust is ${investorTrust}. Investor-side quality or fit needs review.`,
       action: 'Check investor mandate, sector fit and engagement quality.',
     });
-  } else if (investorTrust < 65) {
+  } else if (investorTrust !== null && investorTrust < 65) {
     risks.push({
       label: 'Investor Fit Needs Review',
       severity: 'Medium',
@@ -704,14 +777,14 @@ function getOpportunityRiskRadar(opportunity: any, notes: any[] = []) {
 
   if (status === 'payment_pending') {
     risks.push({
-      label: 'Payment / Reveal Pending',
+      label: 'Qualification Required',
       severity: 'High',
       detail: 'The workflow is blocked before notification or response.',
-      action: 'Complete payment / reveal before Deal Desk pushes the opportunity.',
+      action: 'Complete qualification and prepare protected outreach.',
     });
   }
 
-  if (['interested', 'notified', 'response_received'].includes(status) && health < 75) {
+  if (['interested', 'notified', 'response_received'].includes(status) && health !== null && health < 75) {
     risks.push({
       label: 'Workflow Stall Risk',
       severity: 'Medium',
@@ -734,8 +807,8 @@ function getOpportunityRiskRadar(opportunity: any, notes: any[] = []) {
     risks.push({
       label: 'No Major Risk Detected',
       severity: 'Low',
-      detail: 'This opportunity has acceptable confidence, health, trust and readiness signals.',
-      action: 'Keep momentum and prepare the next workflow step.',
+      detail: 'No evidence-backed risk threshold has been triggered.',
+      action: 'Keep gathering evidence and prepare the next workflow step.',
     });
   }
 
@@ -773,15 +846,15 @@ function buildRiskRadarNote(opportunity: any, notes: any[] = []) {
 
 
 function getFounderBrief(opportunity: any) {
-  const confidence = Number(opportunity?.investment_confidence || 0);
-  const founderTrust = Number(opportunity?.founder_trust_score ?? 50);
+  const qualification = evidenceScore(opportunity?.opportunity_score);
+  const founderTrust = evidenceScore(opportunity?.founder_trust_score);
   const docs = getDocumentReadiness(opportunity);
   const readyDocs = docs.filter((doc) => doc.ready).length;
 
   let positioning = 'Qualify founder readiness before investor escalation.';
-  if (confidence >= 80 && founderTrust >= 70) {
+  if (qualification !== null && founderTrust !== null && qualification >= 80 && founderTrust >= 70) {
     positioning = 'Strong founder-side signal. Suitable for investor-facing movement.';
-  } else if (confidence >= 65) {
+  } else if (qualification !== null && qualification >= 50) {
     positioning = 'Promising founder-side profile. Strengthen documents before IC.';
   }
 
@@ -797,20 +870,20 @@ function getFounderBrief(opportunity: any) {
 }
 
 function getInvestorBrief(opportunity: any) {
-  const investorTrust = Number(opportunity?.investor_trust_score ?? 50);
-  const matchScore = Number(opportunity?.match_score || 0);
-  const confidence = Number(opportunity?.investment_confidence || 0);
+  const investorTrust = evidenceScore(opportunity?.investor_trust_score);
+  const matchScore = evidenceScore(opportunity?.match_score);
+  const qualification = evidenceScore(opportunity?.opportunity_score);
 
   let positioning = 'Use a cautious intro and validate investor interest.';
-  if (matchScore >= 85 && confidence >= 80) {
+  if (matchScore !== null && matchScore >= 85 && qualification !== null && qualification >= 80) {
     positioning = 'Lead with strategic fit, readiness and clear next step.';
-  } else if (matchScore >= 70) {
+  } else if (matchScore !== null && matchScore >= 70) {
     positioning = 'Position around sector fit and founder preparedness.';
   }
 
   return {
     firm: opportunity?.firm || 'Protected Investor',
-    focus: opportunity?.focus_sectors || opportunity?.sector || 'Not disclosed',
+    focus: opportunity?.investor_sector || opportunity?.focus_sectors || 'Not disclosed',
     city: opportunity?.investor_city || 'Location not disclosed',
     trust: investorTrust,
     matchScore,
@@ -823,16 +896,57 @@ export default function OpportunitiesPage() {
   const [noteText, setNoteText] = useState('');
   const [copiedAction, setCopiedAction] = useState<string | null>(null);
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState('overview');
+  const [gate0Notes, setGate0Notes] = useState<Record<string, string>>({});
+  const [meetingActionError, setMeetingActionError] = useState('');
+  const [scheduleForm, setScheduleForm] = useState({
+    start: '',
+    end: '',
+    timezone:
+      Intl.DateTimeFormat().resolvedOptions().timeZone === 'Asia/Calcutta'
+        ? 'Asia/Kolkata'
+        : Intl.DateTimeFormat().resolvedOptions().timeZone
+      || 'Asia/Kolkata',
+    mode: 'video' as 'video' | 'phone' | 'in_person',
+    url: '',
+    location: '',
+    notes: '',
+  });
+
+  const [
+    investorInviteMessage,
+    setInvestorInviteMessage,
+  ] = useState('');
 
   const { data = [], isLoading, refetch } = useQuery({
     queryKey: ['opportunities'],
     queryFn: getDealFlow,
   });
 
-  const { data: selectedTimeline = [], isLoading: isTimelineLoading } = useQuery({
+  const {
+    data: selectedTimeline = [],
+    isLoading: isTimelineLoading,
+    refetch: refetchTimeline,
+  } = useQuery({
     queryKey: ['opportunityTimeline', selected?.id],
     queryFn: () => getOpportunityTimeline(selected.id),
     enabled: Boolean(selected?.id),
+  });
+
+  const { data: currentUser } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: getCurrentUser,
+    retry: false,
+  });
+
+  const {
+    data: meetingCoordination,
+    isLoading: isMeetingCoordinationLoading,
+    refetch: refetchMeetingCoordination,
+  } = useQuery({
+    queryKey: ['meetingCoordination', selected?.id],
+    queryFn: () => getMeetingCoordination(selected.id),
+    enabled: Boolean(selected?.id),
+    retry: false,
   });
 
   const {
@@ -850,6 +964,91 @@ export default function OpportunitiesPage() {
     queryFn: getChiefOfStaffBrief,
   });
 
+  const followupDueRows = Array.isArray(
+    chiefBrief?.followup_due_opportunities
+  )
+    ? chiefBrief.followup_due_opportunities
+    : [];
+
+  const selectedFollowupDue = selected
+    ? followupDueRows.find(
+        (row: any) =>
+          String(row?.opportunity_id) === String(selected.id)
+      )
+    : null;
+
+  const selectedStartupId = selected?.startup_id
+    ? String(selected.startup_id)
+    : '';
+
+  const {
+    data: conversionBriefResponse,
+    isLoading: isConversionBriefLoading,
+  } = useQuery({
+    queryKey: ['dealDeskBrief', selectedStartupId],
+    queryFn: () => getDealDeskBrief(selectedStartupId),
+    enabled: Boolean(selectedStartupId),
+    retry: false,
+  });
+
+  const conversionBrief = conversionBriefResponse?.brief;
+
+
+  const isAdmin =
+    String(currentUser?.role || '').toLowerCase() === 'admin';
+
+  const meetingRecord =
+    meetingCoordination?.meeting || null;
+
+  const gate0Rows = Array.isArray(
+    meetingCoordination?.gate0
+  )
+    ? meetingCoordination.gate0
+    : [];
+
+  const gate0Summary =
+    meetingCoordination?.gate0_summary || {
+      total: 0,
+      awaiting: 0,
+      provided: 0,
+      verified: 0,
+      ready_to_schedule: false,
+    };
+
+  const canSchedule =
+    Boolean(
+      isAdmin
+      && meetingCoordination?.permissions?.can_schedule
+    );
+
+  const sendInvestorInvite =
+    useMutation({
+      mutationFn: (
+        opportunityId: string
+      ) =>
+        sendInvestorInvitation(
+          opportunityId
+        ),
+
+      onSuccess: async () => {
+        setInvestorInviteMessage(
+          'Investor invitation sent successfully.'
+        );
+
+        await Promise.all([
+          refetchTimeline(),
+          refetch(),
+        ]);
+      },
+
+      onError: (error: any) => {
+        setInvestorInviteMessage(
+          error?.message
+          || 'Unable to send investor invitation.'
+        );
+      },
+    });
+
   const updateStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => updateDealFlowStatus(id, status),
     onSuccess: () => refetch(),
@@ -860,6 +1059,157 @@ export default function OpportunitiesPage() {
     onSuccess: () => {
       setNoteText('');
       refetchNotes();
+    },
+  });
+
+
+  const updateGate0 = useMutation({
+    mutationFn: async ({
+      requirementKey,
+      status,
+    }: {
+      requirementKey: string;
+      status: 'provided' | 'verified';
+    }) => {
+      if (!selected?.id) {
+        throw new Error('No Opportunity selected.');
+      }
+
+      if (status === 'provided') {
+        const notes =
+          String(
+            gate0Notes[requirementKey] || ''
+          ).trim();
+
+        if (!notes) {
+          throw new Error(
+            'Add evidence notes before recording Provided.'
+          );
+        }
+
+        return updateGate0Requirement(
+          String(selected.id),
+          requirementKey,
+          {
+            status,
+            evidence_source: 'deal_desk_admin',
+            evidence_notes: notes,
+          }
+        );
+      }
+
+      return updateGate0Requirement(
+        String(selected.id),
+        requirementKey,
+        { status }
+      );
+    },
+
+    onSuccess: async () => {
+      setMeetingActionError('');
+      await Promise.all([
+        refetchMeetingCoordination(),
+        refetchTimeline(),
+      ]);
+    },
+
+    onError: (error: any) => {
+      setMeetingActionError(
+        error?.message
+        || 'Unable to update Gate 0.'
+      );
+    },
+  });
+
+  const scheduleMeeting = useMutation({
+    mutationFn: async () => {
+      if (!selected?.id) {
+        throw new Error('No Opportunity selected.');
+      }
+
+      if (!scheduleForm.start || !scheduleForm.end) {
+        throw new Error(
+          'Meeting start and end time are required.'
+        );
+      }
+
+      const start = new Date(scheduleForm.start);
+      const end = new Date(scheduleForm.end);
+
+      if (
+        Number.isNaN(start.getTime())
+        || Number.isNaN(end.getTime())
+      ) {
+        throw new Error(
+          'Enter valid meeting start and end times.'
+        );
+      }
+
+      if (
+        scheduleForm.mode === 'video'
+        && !scheduleForm.url.trim()
+      ) {
+        throw new Error(
+          'Video meetings require an HTTPS meeting URL.'
+        );
+      }
+
+      if (
+        scheduleForm.mode === 'in_person'
+        && !scheduleForm.location.trim()
+      ) {
+        throw new Error(
+          'In-person meetings require a location.'
+        );
+      }
+
+      return scheduleOpportunityMeeting(
+        String(selected.id),
+        {
+          scheduled_start_at: start.toISOString(),
+          scheduled_end_at: end.toISOString(),
+          timezone: scheduleForm.timezone,
+          meeting_mode: scheduleForm.mode,
+          meeting_url:
+            scheduleForm.mode === 'video'
+              ? scheduleForm.url.trim()
+              : null,
+          location:
+            scheduleForm.mode === 'in_person'
+              ? scheduleForm.location.trim()
+              : null,
+          coordination_notes:
+            scheduleForm.notes.trim() || null,
+        }
+      );
+    },
+
+    onSuccess: async (payload: any) => {
+      setMeetingActionError('');
+
+      if (payload?.opportunity) {
+        setSelected((current: any) =>
+          current
+            ? {
+                ...current,
+                ...payload.opportunity,
+              }
+            : current
+        );
+      }
+
+      await Promise.all([
+        refetchMeetingCoordination(),
+        refetchTimeline(),
+        refetch(),
+      ]);
+    },
+
+    onError: (error: any) => {
+      setMeetingActionError(
+        error?.message
+        || 'Unable to schedule the meeting.'
+      );
     },
   });
 
@@ -874,28 +1224,33 @@ export default function OpportunitiesPage() {
 
   const actionQueue = useMemo(() => {
     const sorted = [...opportunities].sort((a: any, b: any) => {
-      const aConfidence = Number(a?.investment_confidence || 0);
-      const bConfidence = Number(b?.investment_confidence || 0);
-      const aHealth = Number(a?.health_score || 0);
-      const bHealth = Number(b?.health_score || 0);
-      return bConfidence + bHealth - (aConfidence + aHealth);
+      const aQualification = evidenceScore(a?.opportunity_score) ?? -1;
+      const bQualification = evidenceScore(b?.opportunity_score) ?? -1;
+      return bQualification - aQualification;
     });
 
     const needsDocuments = sorted.filter((o: any) =>
       getDocumentReadiness(o).some((doc) => !doc.ready)
     );
 
+    const followupDueIds = new Set(
+      (chiefBrief?.followup_due_opportunities || []).map(
+        (row: any) => String(row?.opportunity_id)
+      )
+    );
+
     const needsFollowup = sorted.filter((o: any) =>
-      ['interested', 'payment_pending', 'payment_complete', 'investor_notified', 'waiting_response'].includes(o.status || 'interested')
+      followupDueIds.has(String(o.id))
     );
 
     const readyForIC = sorted.filter((o: any) => {
-      const confidence = Number(o?.investment_confidence || 0);
+      const qualification = evidenceScore(o?.opportunity_score);
       const docsReady = getDocumentReadiness(o).filter((doc) => doc.ready).length;
       const status = o.status || 'interested';
 
       return (
-        confidence >= 75 &&
+        qualification !== null &&
+        qualification >= 50 &&
         docsReady >= 3 &&
         ['accepted', 'meeting_scheduled', 'due_diligence', 'funded', 'interested'].includes(status)
       );
@@ -909,7 +1264,7 @@ export default function OpportunitiesPage() {
       needsFollowup: needsFollowup.slice(0, 4),
       highPriority: highPriority.slice(0, 4),
     };
-  }, [opportunities]);
+  }, [opportunities, chiefBrief]);
 
   return (
     <div className="p-6 text-white">
@@ -919,10 +1274,10 @@ export default function OpportunitiesPage() {
         </div>
         <h1 className="text-3xl font-semibold mb-2">Opportunities Workspace</h1>
         <p className="text-sm text-gray-400">
-          Manage every active opportunity from interest to funding. This is the operating layer above AI matches.
+          Manage every active opportunity from start to funding. This is the operating layer above Match Fit and qualification signals.
         </p>
         <div className="mt-4 text-sm text-lime-300">
-          AI Match → Opportunity → Payment → Notification → Response → Meeting → Due Diligence → Funded
+          Opportunity Started → Outreach Initiated → Awaiting Response → Meeting Requested → Meeting Scheduled → Due Diligence → Funded
         </div>
       </div>
 
@@ -1019,7 +1374,7 @@ export default function OpportunitiesPage() {
                             </div>
                           </div>
                           <div className={`text-xs font-semibold ${bucket.text}`}>
-                            {o.investment_confidence ?? 0}%
+                            {scoreLabel(o.opportunity_score, '%')}
                           </div>
                         </div>
                         <div className="mt-2 line-clamp-2 text-xs text-gray-500">
@@ -1085,16 +1440,16 @@ export default function OpportunitiesPage() {
                       </h2>
                     </div>
                     <div className="text-right">
-                      <div className="text-xs text-gray-400">Investment Confidence</div>
-                      <div className="text-xl font-bold text-lime-300">{o.investment_confidence ?? 0}%</div>
+                      <div className="text-xs text-gray-400">Opportunity Qualification</div>
+                      <div className="text-xl font-bold text-lime-300">{scoreLabel(o.opportunity_score, '%')}</div>
                       <div className="text-xs text-gray-400 mt-2">Risk</div>
-                      <div className="text-sm font-bold text-yellow-300">{o.investment_risk || 'Medium'}</div>
-                      <div className="text-xs text-gray-400 mt-2">AI Match</div>
-                      <div className="text-sm font-bold text-lime-300">{o.match_score || 0}%</div>
+                      <div className="text-sm font-bold text-yellow-300">{o.investment_risk || 'Awaiting'}</div>
+                      <div className="text-xs text-gray-400 mt-2">Match Fit</div>
+                      <div className="text-sm font-bold text-lime-300">{scoreLabel(o.match_score, '%')}</div>
                       <div className="text-xs text-gray-400 mt-2">Health</div>
-                      <div className="text-lg font-bold text-lime-300">{o.health_score ?? 0}</div>
+                      <div className="text-lg font-bold text-lime-300">{scoreLabel(o.health_score)}</div>
                       <div className="text-xs text-gray-400 mt-2">Trust</div>
-                      <div className="text-sm font-bold text-blue-300">F {o.founder_trust_score ?? 50} / I {o.investor_trust_score ?? 50}</div>
+                      <div className="text-sm font-bold text-blue-300">F {scoreLabel(o.founder_trust_score)} / I {scoreLabel(o.investor_trust_score)}</div>
                     </div>
                   </div>
 
@@ -1108,7 +1463,7 @@ export default function OpportunitiesPage() {
                   </div>
 
                   <div className="mt-4 border-t border-lime-500/30 pt-3 flex gap-2">
-                    {next && (
+                    {false && next && (
                       <button
                         type="button"
                         className="rounded-md bg-lime-400 text-black px-3 py-2 text-sm font-semibold disabled:opacity-60"
@@ -1158,22 +1513,52 @@ export default function OpportunitiesPage() {
             <div className="space-y-3 text-sm text-gray-300">
               <div className="border border-lime-500/30 rounded-md p-3">
                 <div className="text-lime-300 font-semibold">Recommended First Action</div>
-                <p className="mt-1">{chiefBrief?.recommended_first_action || 'Review opportunities and AI matches.'}</p>
+                <p className="mt-1">{chiefBrief?.recommended_first_action || 'Review opportunities and Match Fit signals.'}</p>
               </div>
 
               <div className="border border-yellow-500/30 rounded-md p-3">
-                <div className="text-yellow-300 font-semibold">Payment Pending</div>
-                <p className="mt-1">{chiefBrief?.totals?.payment_pending ?? 0} opportunities are waiting for payment / reveal.</p>
+                <div className="text-yellow-300 font-semibold">Outreach Needed</div>
+                <p className="mt-1">{chiefBrief?.totals?.outreach_needed ?? 0} opportunities need TD Venture outreach.</p>
+              </div>
+
+              <div className="border border-red-500/30 rounded-md p-3">
+                <div className="text-red-300 font-semibold">Delivery Issues</div>
+                <p className="mt-1">{chiefBrief?.totals?.delivery_issue ?? 0} opportunities need a verified contact route before further outreach.</p>
               </div>
 
               <div className="border border-blue-500/30 rounded-md p-3">
-                <div className="text-blue-300 font-semibold">Waiting Response</div>
-                <p className="mt-1">{chiefBrief?.totals?.waiting_response ?? 0} opportunities are waiting for investor response.</p>
+                <div className="text-blue-300 font-semibold">Awaiting Response</div>
+                <p className="mt-1">{chiefBrief?.totals?.waiting_response ?? 0} opportunities are awaiting a response.</p>
+              </div>
+
+              <div className="border border-yellow-500/30 rounded-md p-3">
+                <div className="text-yellow-300 font-semibold">Follow-up Due</div>
+                <p className="mt-1">
+                  {chiefBrief?.totals?.followup_due ?? 0} delivered invitations have been unanswered for at least 72 hours.
+                </p>
+
+                {followupDueRows.length > 0 && (
+                  <div className="mt-2 space-y-1 text-xs text-gray-400">
+                    {followupDueRows.slice(0, 3).map((row: any) => (
+                      <div
+                        key={row.invitation_id}
+                        className="flex items-center justify-between gap-3"
+                      >
+                        <span>{row.opportunity_code || 'Opportunity'}</span>
+                        <span>{row.hours_waiting}h</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="border border-lime-500/30 rounded-md p-3">
                 <div className="text-lime-300 font-semibold">Confidence</div>
-                <p className="mt-1">{chiefBrief?.confidence ?? 0}% operational confidence based on current workflow signals.</p>
+                <p className="mt-1">
+                  {typeof chiefBrief?.confidence === "number"
+                    ? `${chiefBrief.confidence}% operational confidence based on current workflow signals.`
+                    : "Awaiting sufficient workflow evidence."}
+                </p>
               </div>
             </div>
           </aside>
@@ -1202,9 +1587,9 @@ export default function OpportunitiesPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
               <div className="border border-lime-500/40 rounded-lg p-4">
-                <div className="text-xs text-gray-400">Investment Confidence</div>
-                <div className="text-3xl font-bold text-lime-300">{selected.investment_confidence ?? 0}%</div>
-                <div className="text-xs text-gray-500 mt-1">Risk: {selected.investment_risk || 'Medium'}</div>
+                <div className="text-xs text-gray-400">Opportunity Qualification</div>
+                <div className="text-3xl font-bold text-lime-300">{scoreLabel(selected.opportunity_score, '%')}</div>
+                <div className="text-xs text-gray-500 mt-1">Risk: {selected.investment_risk || 'Awaiting'}</div>
               </div>
               <div className="border border-lime-500/40 rounded-lg p-4">
                 <div className="text-xs text-gray-400">Status</div>
@@ -1214,12 +1599,12 @@ export default function OpportunitiesPage() {
               </div>
               <div className="border border-lime-500/40 rounded-lg p-4">
                 <div className="text-xs text-gray-400">Health</div>
-                <div className="text-3xl font-bold text-lime-300">{selected.health_score ?? 0}</div>
+                <div className="text-3xl font-bold text-lime-300">{scoreLabel(selected.health_score)}</div>
               </div>
               <div className="border border-blue-500/40 rounded-lg p-4">
                 <div className="text-xs text-gray-400">Trust</div>
-                <div className="text-xl font-bold text-blue-300">Founder {selected.founder_trust_score ?? 50}</div>
-                <div className="text-xl font-bold text-blue-300">Investor {selected.investor_trust_score ?? 50}</div>
+                <div className="text-xl font-bold text-blue-300">Founder {scoreLabel(selected.founder_trust_score)}</div>
+                <div className="text-xl font-bold text-blue-300">Investor {scoreLabel(selected.investor_trust_score)}</div>
               </div>
             </div>
 
@@ -1380,6 +1765,113 @@ export default function OpportunitiesPage() {
               </div>
             </div>
 
+            <div className={`${activeWorkspaceTab === 'scores' ? '' : 'hidden'} mb-5 border border-cyan-500/40 rounded-lg p-4 bg-black/40`}>
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.25em] text-cyan-300">Conversion Intelligence</div>
+                  <h3 className="mt-1 font-semibold text-cyan-200">Investment Thesis &amp; Risk Matrix</h3>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Central Conversion assessment. Deal Desk consumes this signal; it does not recalculate it.
+                  </p>
+                </div>
+
+                {conversionBrief && (
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className="rounded-full border border-cyan-500/40 px-3 py-1 text-cyan-200">
+                      {conversionBrief.investability || 'Assessment pending'}
+                    </span>
+                    <span className="rounded-full border border-white/15 px-3 py-1 text-gray-300">
+                      Risk: {conversionBrief.overall_risk_level || 'Unknown'}
+                    </span>
+                    <span className="rounded-full border border-white/15 px-3 py-1 text-gray-300">
+                      Confidence: {conversionBrief.confidence_level || 'Unknown'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {isConversionBriefLoading ? (
+                <div className="mt-4 text-sm text-gray-400">Loading current Conversion assessment…</div>
+              ) : conversionBrief ? (
+                <div className="mt-4 grid gap-4 lg:grid-cols-[220px_1fr]">
+                  <div className="rounded-lg border border-cyan-500/25 bg-black/55 p-4">
+                    <div className="text-xs text-gray-500">Investability Score</div>
+                    <div className="mt-2 text-5xl font-bold text-cyan-200">
+                      {conversionBrief.investability_score ?? '—'}
+                    </div>
+                    <div className="mt-1 text-xs text-gray-500">Out of 100 · Conversion metrics only</div>
+
+                    <div className="mt-5 border-t border-white/10 pt-4">
+                      <div className="text-xs text-gray-500">Next Best Action</div>
+                      <div className="mt-2 text-sm text-gray-200">
+                        {conversionBrief.next_best_action || 'Review the Conversion assessment.'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {(conversionBrief.risk_matrix || []).map((item: any) => (
+                      <div key={item.dimension} className="rounded-lg border border-cyan-500/20 bg-black/55 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="text-sm font-medium text-gray-200">{item.label}</div>
+                          <div
+                            className={
+                              item.risk_level === 'High'
+                                ? 'rounded-full border border-red-500/40 px-2 py-1 text-xs text-red-300'
+                                : item.risk_level === 'Moderate'
+                                ? 'rounded-full border border-yellow-500/40 px-2 py-1 text-xs text-yellow-300'
+                                : 'rounded-full border border-lime-500/40 px-2 py-1 text-xs text-lime-300'
+                            }
+                          >
+                            {item.risk_level}
+                          </div>
+                        </div>
+                        <div className="mt-3 text-3xl font-bold text-cyan-100">
+                          {item.score ?? '—'}
+                        </div>
+                        <div className="mt-1 text-xs text-gray-500">Conversion score</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="lg:col-span-2 rounded-lg border border-cyan-500/20 bg-black/55 p-4">
+                    <div className="text-xs uppercase tracking-[0.2em] text-cyan-300">Investment Thesis</div>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-200">
+                      {conversionBrief.investment_thesis || 'No investment thesis is available yet.'}
+                    </p>
+
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <div className="rounded-md border border-red-500/20 bg-red-500/5 p-3">
+                        <div className="text-xs font-semibold text-red-300">Risk Flags</div>
+                        <ul className="mt-2 space-y-1 text-xs text-gray-300">
+                          {(conversionBrief.risk_flags || []).length > 0
+                            ? conversionBrief.risk_flags.map((flag: string) => <li key={flag}>• {flag}</li>)
+                            : <li>No material flags recorded.</li>}
+                        </ul>
+                      </div>
+
+                      <div className="rounded-md border border-yellow-500/20 bg-yellow-500/5 p-3">
+                        <div className="text-xs font-semibold text-yellow-300">Missing Evidence</div>
+                        <ul className="mt-2 space-y-1 text-xs text-gray-300">
+                          {(conversionBrief.missing_evidence || []).length > 0
+                            ? conversionBrief.missing_evidence.map((item: any) => (
+                              <li key={`${item.item}-${item.priority}`}>
+                                • {item.item} ({item.priority})
+                              </li>
+                            ))
+                            : <li>No priority evidence gaps recorded.</li>}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-4 rounded-lg border border-white/10 bg-black/30 p-4 text-sm text-gray-400">
+                  No current Conversion assessment is available for this startup yet.
+                </div>
+              )}
+            </div>
+
             {(() => {
               const operatingScore = getOpportunityOperatingScore(selected, selectedNotes);
               const operatingGrade = getOpportunityOperatingGrade(operatingScore);
@@ -1393,7 +1885,7 @@ export default function OpportunitiesPage() {
                       <div className="text-xs uppercase tracking-[0.25em] text-orange-300">Workspace 3.0</div>
                       <h3 className="mt-1 font-semibold text-orange-300">Opportunity Operating Score</h3>
                       <p className="text-xs text-gray-500 mt-1">
-                        One operating score combining confidence, health, trust, IC readiness, notes and workflow status.
+                        Calculated only when qualification, health and both trust records are backed by evidence.
                       </p>
                     </div>
 
@@ -1438,16 +1930,16 @@ export default function OpportunitiesPage() {
                       <div className="text-xs text-gray-500">Operating Score</div>
                       <div
                         className={
-                          operatingScore >= 85
+                          operatingScore !== null && operatingScore >= 85
                             ? 'mt-2 text-5xl font-bold text-lime-300'
-                            : operatingScore >= 70
+                            : operatingScore !== null && operatingScore >= 70
                             ? 'mt-2 text-5xl font-bold text-emerald-300'
-                            : operatingScore >= 55
+                            : operatingScore !== null && operatingScore >= 55
                             ? 'mt-2 text-5xl font-bold text-yellow-300'
                             : 'mt-2 text-5xl font-bold text-red-300'
                         }
                       >
-                        {operatingScore}
+                        {operatingScore ?? 'Awaiting'}
                       </div>
                       <div className="mt-2 text-sm font-semibold text-orange-200">{operatingGrade}</div>
                       <div className="mt-3 text-xs text-gray-500">
@@ -1467,7 +1959,7 @@ export default function OpportunitiesPage() {
                               <div className="mt-1 text-[11px] text-gray-600">Weight {item.weight}</div>
                             </div>
                             <div className={item.ready ? 'text-lime-300 font-bold' : 'text-yellow-300 font-bold'}>
-                              {item.value}
+                              {scoreLabel(item.value)}
                             </div>
                           </div>
                           <div className="mt-2 text-xs text-gray-500">{item.detail}</div>
@@ -1646,7 +2138,7 @@ export default function OpportunitiesPage() {
                           <div className="mt-1 text-lg font-semibold text-white">{investorBrief.firm}</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-2xl font-bold text-sky-300">{investorBrief.matchScore}%</div>
+                          <div className="text-2xl font-bold text-sky-300">{scoreLabel(investorBrief.matchScore, '%')}</div>
                           <div className="text-xs text-gray-500">Match</div>
                         </div>
                       </div>
@@ -1666,7 +2158,7 @@ export default function OpportunitiesPage() {
                         </div>
                         <div>
                           <div className="text-xs text-gray-500">Risk</div>
-                          <div className="text-gray-200">{selected.investment_risk || 'Medium'}</div>
+                          <div className="text-gray-200">{selected.investment_risk || 'Awaiting'}</div>
                         </div>
                       </div>
 
@@ -1714,9 +2206,9 @@ export default function OpportunitiesPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <div><span className="text-gray-500">Confidence:</span> <span className="text-lime-300 font-semibold">{selected.investment_confidence ?? 0}%</span></div>
-                  <div><span className="text-gray-500">Risk:</span> <span className="text-yellow-300 font-semibold">{selected.investment_risk || 'Medium'}</span></div>
-                  <div><span className="text-gray-500">Health:</span> <span className="text-lime-300 font-semibold">{selected.health_score ?? 0}</span></div>
+                  <div><span className="text-gray-500">Qualification:</span> <span className="text-lime-300 font-semibold">{scoreLabel(selected.opportunity_score, '%')}</span></div>
+                  <div><span className="text-gray-500">Risk:</span> <span className="text-yellow-300 font-semibold">{selected.investment_risk || 'Awaiting'}</span></div>
+                  <div><span className="text-gray-500">Health:</span> <span className="text-lime-300 font-semibold">{scoreLabel(selected.health_score)}</span></div>
                   <div><span className="text-gray-500">Priority:</span> <span className="text-blue-300 font-semibold">{getPriority(selected)}</span></div>
                   <div><span className="text-gray-500">Next:</span> {getWorkspaceAction(selected)}</div>
                 </div>
@@ -1840,6 +2332,12 @@ export default function OpportunitiesPage() {
                       <p className="text-xs text-gray-500 mt-1">
                         Founder message, investor message and internal Deal Desk action generated from the current opportunity state.
                       </p>
+
+                      {selectedFollowupDue && (
+                        <div className="mt-3 inline-flex rounded-md border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-200">
+                          Follow-up due now · {selectedFollowupDue.hours_waiting} hours since confirmed delivery
+                        </div>
+                      )}
                     </div>
 
                     <button
@@ -1870,7 +2368,7 @@ export default function OpportunitiesPage() {
                           <div>
                             <div className={`text-sm font-semibold ${pack.tone}`}>{pack.title}</div>
                             <div className="mt-1 text-[11px] text-gray-600">
-                              {selected.opportunity_code || 'Opportunity'} · {selected.status || 'interested'}
+                              {selected.opportunity_code || 'Opportunity'} · {stages.find((s) => s.key === (selected.status || 'interested'))?.label || selected.status || 'Opportunity Started'}
                             </div>
                           </div>
 
@@ -1962,13 +2460,13 @@ export default function OpportunitiesPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                 <div>
                   <div className="text-xs text-gray-400">Current Founder Trust</div>
-                  <div className="text-3xl font-bold text-blue-300">{selected.founder_trust_score ?? 50}</div>
+                  <div className="text-3xl font-bold text-blue-300">{scoreLabel(selected.founder_trust_score)}</div>
                 </div>
 
                 <div>
-                  <div className="text-xs text-gray-400">Potential Trust</div>
-                  <div className="text-3xl font-bold text-lime-300">
-                    {Math.min(100, Number(selected.founder_trust_score ?? 50) + 20)}
+                  <div className="text-xs text-gray-400">Trust status</div>
+                  <div className="mt-2 text-base font-bold text-gray-400">
+                    Awaiting evidence
                   </div>
                 </div>
 
@@ -1982,13 +2480,13 @@ export default function OpportunitiesPage() {
 
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                 <div className="border border-lime-500/20 rounded-md p-3">
-                  <div className="text-lime-300 font-semibold">✓ Email verified</div>
-                  <div className="text-gray-500 text-xs mt-1">Founder has provided a valid email.</div>
+                  <div className="text-gray-300 font-semibold">Email evidence</div>
+                  <div className="text-gray-500 text-xs mt-1">Awaiting an evidence-backed trust record.</div>
                 </div>
 
                 <div className="border border-lime-500/20 rounded-md p-3">
-                  <div className="text-lime-300 font-semibold">✓ Mobile available</div>
-                  <div className="text-gray-500 text-xs mt-1">Phone number improves follow-up reliability.</div>
+                  <div className="text-gray-300 font-semibold">Mobile evidence</div>
+                  <div className="text-gray-500 text-xs mt-1">Awaiting an evidence-backed trust record.</div>
                 </div>
 
                 <div className="border border-yellow-500/20 rounded-md p-3">
@@ -2003,6 +2501,464 @@ export default function OpportunitiesPage() {
               </div>
             </div>
 
+            <div
+              className={`${activeWorkspaceTab === 'overview' ? '' : 'hidden'} mb-5 border border-blue-500/40 rounded-lg p-4 bg-black/40`}
+            >
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                <div>
+                  <h3 className="font-semibold text-blue-300">
+                    Meeting Coordination
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Gate 0 controls the first founder-investor meeting. Contact details remain protected and TD Venture coordinates the introduction.
+                  </p>
+                </div>
+
+                <div className="text-xs border border-blue-500/30 rounded-md px-3 py-2 text-blue-200">
+                  {meetingRecord
+                    ? gate0StatusLabel(
+                        meetingRecord.status === 'scheduled'
+                          ? 'verified'
+                          : meetingRecord.status
+                      ) === 'Verified'
+                      ? 'Meeting Scheduled'
+                      : meetingRecord.status === 'coordinating'
+                        ? 'Coordinating'
+                        : 'Meeting Requested'
+                    : 'No Meeting Request'}
+                </div>
+              </div>
+
+              <Gate0ConversionLaunch
+                opportunityId={selected?.id}
+              />
+
+              <Gate0InvestorDocuments
+                opportunityId={selected?.id}
+              />
+
+              <MeetingLifecycleControls
+                opportunityId={selected?.id}
+                meeting={meetingRecord}
+              />
+
+              <DueDiligenceWorkroom
+                opportunityId={selected?.id}
+                opportunityStatus={selected?.status}
+              />
+
+              <InvestmentDecisionControls
+                opportunityId={selected?.id}
+                opportunityStatus={selected?.status}
+              />
+
+              {isMeetingCoordinationLoading ? (
+                <div className="mt-4 text-sm text-gray-500">
+                  Loading Meeting Coordination...
+                </div>
+              ) : (
+                <>
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="rounded-md border border-blue-500/20 p-3">
+                      <div className="text-[11px] uppercase tracking-wide text-gray-500">
+                        Gate 0
+                      </div>
+                      <div className="mt-1 text-xl font-bold text-blue-200">
+                        {gate0Summary.verified || 0}/4 Verified
+                      </div>
+                    </div>
+
+                    <div className="rounded-md border border-blue-500/20 p-3">
+                      <div className="text-[11px] uppercase tracking-wide text-gray-500">
+                        Scheduling
+                      </div>
+                      <div className="mt-1 font-semibold">
+                        {meetingRecord?.status === 'scheduled'
+                          ? 'Scheduled'
+                          : gate0Summary.ready_to_schedule
+                            ? 'Ready to Schedule'
+                            : 'Gate 0 Required'}
+                      </div>
+                    </div>
+
+                    <div className="rounded-md border border-blue-500/20 p-3">
+                      <div className="text-[11px] uppercase tracking-wide text-gray-500">
+                        Privacy
+                      </div>
+                      <div className="mt-1 font-semibold text-lime-300">
+                        Protected
+                      </div>
+                    </div>
+                  </div>
+
+                  {meetingRecord?.status === 'scheduled' && (
+                    <div className="mt-4 rounded-md border border-lime-500/30 bg-lime-500/5 p-3 text-sm">
+                      <div className="font-semibold text-lime-300">
+                        First Meeting Scheduled
+                      </div>
+
+                      <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-gray-300">
+                        <div>
+                          <span className="text-gray-500">
+                            Start:
+                          </span>{' '}
+                          {meetingRecord.scheduled_start_at
+                            ? new Date(
+                                meetingRecord.scheduled_start_at
+                              ).toLocaleString()
+                            : 'Awaiting'}
+                        </div>
+
+                        <div>
+                          <span className="text-gray-500">
+                            Mode:
+                          </span>{' '}
+                          {meetingRecord.meeting_mode || 'Awaiting'}
+                        </div>
+
+                        <div>
+                          <span className="text-gray-500">
+                            Timezone:
+                          </span>{' '}
+                          {meetingRecord.timezone || 'Awaiting'}
+                        </div>
+
+                        <div>
+                          <span className="text-gray-500">
+                            End:
+                          </span>{' '}
+                          {meetingRecord.scheduled_end_at
+                            ? new Date(
+                                meetingRecord.scheduled_end_at
+                              ).toLocaleString()
+                            : 'Awaiting'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-4">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                      Gate 0 Requirements
+                    </div>
+
+                    {gate0Rows.length > 0 ? (
+                      <div className="space-y-3">
+                        {gate0Rows.map((row: any) => {
+                          const status =
+                            String(row.status || 'awaiting');
+
+                          return (
+                            <div
+                              key={row.requirement_key}
+                              className="rounded-md border border-gray-800 bg-black/30 p-3"
+                            >
+                              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                                <div>
+                                  <div className="font-semibold text-gray-200">
+                                    {gate0RequirementLabel(
+                                      row.requirement_key
+                                    )}
+                                  </div>
+
+                                  {row.evidence_notes && (
+                                    <div className="mt-1 text-xs text-gray-500">
+                                      {row.evidence_notes}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div
+                                  className={`text-xs font-semibold rounded-md border px-2 py-1 ${
+                                    status === 'verified'
+                                      ? 'border-lime-500/40 text-lime-300'
+                                      : status === 'provided'
+                                        ? 'border-blue-500/40 text-blue-300'
+                                        : 'border-yellow-500/40 text-yellow-300'
+                                  }`}
+                                >
+                                  {gate0StatusLabel(status)}
+                                </div>
+                              </div>
+
+                              {isAdmin
+                                && meetingRecord
+                                && ['requested', 'coordinating', 'scheduled'].includes(
+                                  String(meetingRecord.status)
+                                )
+                                && status !== 'verified' && (
+                                  <div className="mt-3">
+                                    {status === 'awaiting' ? (
+                                      <>
+                                        <textarea
+                                          value={
+                                            gate0Notes[
+                                              row.requirement_key
+                                            ] || ''
+                                          }
+                                          onChange={(event) =>
+                                            setGate0Notes(
+                                              (current) => ({
+                                                ...current,
+                                                [row.requirement_key]:
+                                                  event.target.value,
+                                              })
+                                            )
+                                          }
+                                          placeholder="Evidence notes reviewed by TD Venture..."
+                                          className="w-full min-h-[72px] rounded-md border border-blue-500/20 bg-black/60 p-2 text-xs text-white placeholder:text-gray-600 focus:outline-none focus:border-blue-400"
+                                        />
+
+                                        <button
+                                          type="button"
+                                          disabled={
+                                            updateGate0.isPending
+                                            || !String(
+                                              gate0Notes[
+                                                row.requirement_key
+                                              ] || ''
+                                            ).trim()
+                                          }
+                                          className="mt-2 rounded-md border border-blue-400/50 px-3 py-1.5 text-xs font-semibold text-blue-200 disabled:opacity-40"
+                                          onClick={() =>
+                                            updateGate0.mutate({
+                                              requirementKey:
+                                                row.requirement_key,
+                                              status: 'provided',
+                                            })
+                                          }
+                                        >
+                                          Record Evidence Provided
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        disabled={updateGate0.isPending}
+                                        className="rounded-md bg-lime-400 px-3 py-1.5 text-xs font-semibold text-black disabled:opacity-40"
+                                        onClick={() =>
+                                          updateGate0.mutate({
+                                            requirementKey:
+                                              row.requirement_key,
+                                            status: 'verified',
+                                          })
+                                        }
+                                      >
+                                        Verify by TD Venture
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="rounded-md border border-dashed border-blue-500/20 p-3 text-sm text-gray-500">
+                        Gate 0 begins when a meeting request is recorded.
+                      </div>
+                    )}
+                  </div>
+
+                  {isAdmin
+                    && meetingRecord
+                    && ['requested', 'coordinating'].includes(
+                      String(meetingRecord.status)
+                    ) && (
+                      <div className="mt-5 border-t border-gray-800 pt-4">
+                        <div className="font-semibold text-blue-300">
+                          Schedule First Meeting
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <label className="text-xs text-gray-400">
+                            Start
+                            <input
+                              type="datetime-local"
+                              value={scheduleForm.start}
+                              onChange={(event) =>
+                                setScheduleForm(
+                                  (current) => ({
+                                    ...current,
+                                    start: event.target.value,
+                                  })
+                                )
+                              }
+                              className="mt-1 w-full rounded-md border border-blue-500/20 bg-black/60 p-2 text-sm text-white"
+                            />
+                          </label>
+
+                          <label className="text-xs text-gray-400">
+                            End
+                            <input
+                              type="datetime-local"
+                              value={scheduleForm.end}
+                              onChange={(event) =>
+                                setScheduleForm(
+                                  (current) => ({
+                                    ...current,
+                                    end: event.target.value,
+                                  })
+                                )
+                              }
+                              className="mt-1 w-full rounded-md border border-blue-500/20 bg-black/60 p-2 text-sm text-white"
+                            />
+                          </label>
+
+                          <label className="text-xs text-gray-400">
+                            Timezone
+                            <input
+                              type="text"
+                              value={scheduleForm.timezone}
+                              onChange={(event) =>
+                                setScheduleForm(
+                                  (current) => ({
+                                    ...current,
+                                    timezone: event.target.value,
+                                  })
+                                )
+                              }
+                              className="mt-1 w-full rounded-md border border-blue-500/20 bg-black/60 p-2 text-sm text-white"
+                            />
+                          </label>
+
+                          <label className="text-xs text-gray-400">
+                            Meeting Mode
+                            <select
+                              value={scheduleForm.mode}
+                              onChange={(event) =>
+                                setScheduleForm(
+                                  (current) => ({
+                                    ...current,
+                                    mode:
+                                      event.target.value as
+                                        | 'video'
+                                        | 'phone'
+                                        | 'in_person',
+                                  })
+                                )
+                              }
+                              className="mt-1 w-full rounded-md border border-blue-500/20 bg-black/60 p-2 text-sm text-white"
+                            >
+                              <option value="video">
+                                Video
+                              </option>
+                              <option value="phone">
+                                Phone
+                              </option>
+                              <option value="in_person">
+                                In Person
+                              </option>
+                            </select>
+                          </label>
+                        </div>
+
+                        {scheduleForm.mode === 'video' && (
+                          <label className="mt-3 block text-xs text-gray-400">
+                            HTTPS Meeting URL
+                            <input
+                              type="url"
+                              value={scheduleForm.url}
+                              onChange={(event) =>
+                                setScheduleForm(
+                                  (current) => ({
+                                    ...current,
+                                    url: event.target.value,
+                                  })
+                                )
+                              }
+                              placeholder="https://..."
+                              className="mt-1 w-full rounded-md border border-blue-500/20 bg-black/60 p-2 text-sm text-white"
+                            />
+                          </label>
+                        )}
+
+                        {scheduleForm.mode === 'in_person' && (
+                          <label className="mt-3 block text-xs text-gray-400">
+                            Meeting Location
+                            <input
+                              type="text"
+                              value={scheduleForm.location}
+                              onChange={(event) =>
+                                setScheduleForm(
+                                  (current) => ({
+                                    ...current,
+                                    location: event.target.value,
+                                  })
+                                )
+                              }
+                              className="mt-1 w-full rounded-md border border-blue-500/20 bg-black/60 p-2 text-sm text-white"
+                            />
+                          </label>
+                        )}
+
+                        <label className="mt-3 block text-xs text-gray-400">
+                          Coordination Notes
+                          <textarea
+                            value={scheduleForm.notes}
+                            onChange={(event) =>
+                              setScheduleForm(
+                                (current) => ({
+                                  ...current,
+                                  notes: event.target.value,
+                                })
+                              )
+                            }
+                            className="mt-1 w-full min-h-[70px] rounded-md border border-blue-500/20 bg-black/60 p-2 text-sm text-white"
+                          />
+                        </label>
+
+                        <div className="mt-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                          <div className="text-xs text-gray-500">
+                            {canSchedule
+                              ? 'Gate 0 is verified. TD Venture may schedule the first meeting.'
+                              : `Scheduling locked until all 4 Gate 0 requirements are verified (${gate0Summary.verified || 0}/4).`}
+                          </div>
+
+                          <button
+                            type="button"
+                            disabled={
+                              !canSchedule
+                              || scheduleMeeting.isPending
+                              || !scheduleForm.start
+                              || !scheduleForm.end
+                              || (
+                                scheduleForm.mode === 'video'
+                                && !scheduleForm.url.trim()
+                              )
+                              || (
+                                scheduleForm.mode === 'in_person'
+                                && !scheduleForm.location.trim()
+                              )
+                            }
+                            className="rounded-md bg-blue-400 px-4 py-2 text-sm font-semibold text-black disabled:opacity-40"
+                            onClick={() =>
+                              scheduleMeeting.mutate()
+                            }
+                          >
+                            {scheduleMeeting.isPending
+                              ? 'Scheduling...'
+                              : 'Schedule First Meeting'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                  {meetingActionError && (
+                    <div className="mt-4 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">
+                      {meetingActionError}
+                    </div>
+                  )}
+
+                  {!isAdmin && meetingRecord && (
+                    <div className="mt-4 text-xs text-gray-500">
+                      TD Venture manages evidence verification and first-meeting scheduling. Your Opportunity remains protected throughout coordination.
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className={`${activeWorkspaceTab === 'overview' ? '' : 'hidden'} border border-lime-500/40 rounded-lg p-4`}>
                 <h3 className="font-semibold text-lime-300 mb-3">Opportunity Summary</h3>
@@ -2014,6 +2970,65 @@ export default function OpportunitiesPage() {
                   <div><span className="text-gray-500">Capital:</span> {selected.ask || 'Not disclosed'}</div>
                   <div><span className="text-gray-500">Next Best Action:</span> {selected.next_best_action || selected.next_action || 'Awaiting next event'}</div>
                 </div>
+
+                {isAdmin &&
+                  [
+                    'interested',
+                    'payment_complete',
+                    'investor_notified',
+                    'waiting_response',
+                    'delivery_issue',
+                  ].includes(
+                    String(
+                      selected.status || ''
+                    )
+                  ) && (
+                    <div className="mt-4 border-t border-lime-500/20 pt-4">
+                      <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                        TD Venture Outreach
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={
+                          sendInvestorInvite.isPending
+                        }
+                        onClick={() => {
+                          setInvestorInviteMessage('');
+
+                          sendInvestorInvite.mutate(
+                            String(selected.id)
+                          );
+                        }}
+                        className="mt-2 rounded-md border border-lime-400/50 bg-lime-400/10 px-4 py-2 text-xs font-semibold text-lime-300 transition hover:bg-lime-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {sendInvestorInvite.isPending
+                          ? 'Sending…'
+                          : selected.status ===
+                              'delivery_issue'
+                            ? 'Resend Investor Invitation'
+                            : 'Send Investor Invitation'}
+                      </button>
+
+                      {investorInviteMessage && (
+                        <div
+                          className={`mt-2 text-xs ${
+                            sendInvestorInvite.isError
+                              ? 'text-red-300'
+                              : 'text-lime-300'
+                          }`}
+                        >
+                          {investorInviteMessage}
+                        </div>
+                      )}
+
+                      <div className="mt-2 text-[11px] leading-4 text-gray-500">
+                        TD Venture controls delivery and
+                        preserves founder and investor
+                        contact privacy.
+                      </div>
+                    </div>
+                  )}
               </div>
 
               <div className={`${activeWorkspaceTab === 'timeline' ? '' : 'hidden'} border border-blue-500/40 rounded-lg p-4`}>
@@ -2030,23 +3045,32 @@ export default function OpportunitiesPage() {
 
                   <div className="flex items-center gap-2">
                     <span className={`h-3 w-3 rounded-full ${
-                      ["payment_complete","investor_notified","waiting_response","accepted","meeting_scheduled","due_diligence","funded"].includes(selected.status)
+                      ["payment_complete","investor_notified","delivery_issue","waiting_response","accepted","meeting_scheduled","due_diligence","funded"].includes(selected.status)
                         ? "bg-lime-400"
                         : "border border-gray-500"
                     }`}></span>
-                    Payment Complete
+                    Outreach Ready
                   </div>
 
                   <div className="ml-1 h-4 border-l border-gray-700"></div>
 
                   <div className="flex items-center gap-2">
                     <span className={`h-3 w-3 rounded-full ${
-                      ["investor_notified","waiting_response","accepted","meeting_scheduled","due_diligence","funded"].includes(selected.status)
+                      ["investor_notified","delivery_issue","waiting_response","accepted","meeting_scheduled","due_diligence","funded"].includes(selected.status)
                         ? "bg-lime-400"
                         : "border border-gray-500"
                     }`}></span>
-                    Investor Notified
+                    Outreach Initiated
                   </div>
+
+                  {selected.status === 'delivery_issue' && (
+                    <div className="ml-5 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-red-200">
+                      <div className="font-semibold">Delivery Issue</div>
+                      <div className="mt-1 text-xs">
+                        The invitation was not successfully delivered. Verify the contact route before any further outreach.
+                      </div>
+                    </div>
+                  )}
 
                   <div className="ml-1 h-4 border-l border-gray-700"></div>
 
@@ -2056,7 +3080,7 @@ export default function OpportunitiesPage() {
                         ? "bg-lime-400"
                         : "border border-gray-500"
                     }`}></span>
-                    Waiting Response
+                    Awaiting Response
                   </div>
 
                   <div className="ml-1 h-4 border-l border-gray-700"></div>
@@ -2132,47 +3156,42 @@ export default function OpportunitiesPage() {
             <div className={`${activeWorkspaceTab === 'timeline' ? '' : 'hidden'} mt-5 border border-lime-500/40 rounded-lg p-4`}>
               <h3 className="font-semibold text-lime-300 mb-2">Chief of Staff Recommendation</h3>
               <p className="text-sm text-gray-300">
-                Complete payment/reveal, queue investor notification, then monitor response SLA. Escalate if no response is received within the defined window.
+                Complete qualification, initiate protected outreach, then monitor the response. Contact details remain protected until a TD Venture-coordinated introduction.
               </p>
             </div>
 
             <div className={`${activeWorkspaceTab === 'scores' ? '' : 'hidden'} mt-5 border border-blue-500/40 rounded-lg p-4`}>
-              <h3 className="font-semibold text-blue-300 mb-3">Why this Investment Confidence?</h3>
+              <h3 className="font-semibold text-blue-300 mb-3">Match → Opportunity Qualification</h3>
 
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-400">AI Match × 30%</span>
-                  <span className="text-lime-300">{selected.match_score || 0} → {Math.round((Number(selected.match_score || 0) * 0.30) * 10) / 10}</span>
+                  <span className="text-gray-400">Match Fit × 50%</span>
+                  <span className="text-lime-300">{scoreLabel(selected.match_fit, '/100')}</span>
                 </div>
 
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Founder Trust × 25%</span>
-                  <span className="text-blue-300">{selected.founder_trust_score ?? 50} → {Math.round((Number(selected.founder_trust_score ?? 50) * 0.25) * 10) / 10}</span>
+                  <span className="text-gray-400">Conversion Score × 30%</span>
+                  <span className="text-cyan-300">{scoreLabel(selected.conversion_score, '/100')}</span>
                 </div>
 
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Investor Trust × 25%</span>
-                  <span className="text-blue-300">{selected.investor_trust_score ?? 50} → {Math.round((Number(selected.investor_trust_score ?? 50) * 0.25) * 10) / 10}</span>
-                </div>
-
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Opportunity Health × 20%</span>
-                  <span className="text-lime-300">{selected.health_score ?? 0} → {Math.round((Number(selected.health_score ?? 0) * 0.20) * 10) / 10}</span>
+                  <span className="text-gray-400">Diamond Index × 20%</span>
+                  <span className="text-blue-300">{scoreLabel(selected.diamond_score, '/100')}</span>
                 </div>
 
                 <div className="border-t border-blue-500/30 pt-3 mt-3 flex justify-between">
-                  <span className="font-semibold text-white">Final Confidence</span>
-                  <span className="font-bold text-lime-300">{selected.investment_confidence ?? 0}%</span>
+                  <span className="font-semibold text-white">Qualification · threshold 50</span>
+                  <span className="font-bold text-lime-300">{scoreLabel(selected.opportunity_score, '/100')}</span>
                 </div>
 
                 <div className="flex justify-between">
                   <span className="text-gray-400">Risk</span>
-                  <span className="font-semibold text-yellow-300">{selected.investment_risk || 'Medium'}</span>
+                  <span className="font-semibold text-yellow-300">{selected.investment_risk || 'Awaiting evidence'}</span>
                 </div>
               </div>
 
               <p className="text-xs text-gray-500 mt-3">
-                Investment Confidence combines AI Match, Trust and Opportunity Health. This is an explainable score, not a black box.
+                Founder and investor trust remain independent context. They are never defaulted and are not blended into this qualification score.
               </p>
             </div>
           </div>

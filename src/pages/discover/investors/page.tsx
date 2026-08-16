@@ -1,16 +1,34 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { listInvestorMatches, startOpportunity } from '@/lib/api';
+import {
+  listInvestorMatches,
+  startOpportunity,
+} from '@/lib/api';
 
 export default function DiscoverInvestorsPage() {
   const [tier, setTier] = useState('');
   const [search, setSearch] = useState('');
   const [selectedMatch, setSelectedMatch] = useState<any | null>(null);
   const [dealCreated, setDealCreated] = useState(false);
+  const [dealError, setDealError] = useState('');
 
   const createDeal = useMutation({
     mutationFn: startOpportunity,
-    onSuccess: () => setDealCreated(true),
+    onMutate: () => {
+      setDealError('');
+    },
+    onSuccess: () => {
+      setDealCreated(true);
+      setDealError('');
+    },
+    onError: (error: unknown) => {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Unable to start this Opportunity. Please try again.';
+
+      setDealError(message);
+    },
   });
 
   const { data = [], isLoading } = useQuery({
@@ -39,10 +57,10 @@ export default function DiscoverInvestorsPage() {
         </div>
         <h1 className="text-3xl font-semibold mb-2">Backend AI-ranked investor matches</h1>
         <p className="text-sm text-gray-400">
-          Scores now come from the CRM matching engine. Identity remains protected until Connect → Payment → Reveal.
+          Scores come from the CRM matching engine. Investor identity remains protected while TD Venture manages the Opportunity.
         </p>
         <div className="mt-4 text-sm text-lime-300">
-          Profile → Matching Engine → AI Match Score → Connect → Reveal → Deal Flow
+          Profile → Matching Engine → AI Match Score → Opportunity → Outreach → Deal Flow
         </div>
       </div>
 
@@ -129,9 +147,13 @@ export default function DiscoverInvestorsPage() {
                 <button
                   type="button"
                   className="mt-5 w-full rounded-md bg-lime-400 text-black px-4 py-2 font-semibold"
-                  onClick={() => { setDealCreated(false); setSelectedMatch(m); }}
+                  onClick={() => {
+                    setDealCreated(false);
+                    setDealError('');
+                    setSelectedMatch(m);
+                  }}
                 >
-                  Connect
+                  Open Opportunity
                 </button>
               </div>
             ))}
@@ -143,15 +165,15 @@ export default function DiscoverInvestorsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
           <div className="w-full max-w-xl border border-lime-500/70 bg-black rounded-xl p-6 shadow-[0_0_35px_rgba(163,255,18,0.25)]">
             <div className="text-xs uppercase tracking-[0.35em] text-lime-300 mb-2">
-              Connect Request
+              Investor Opportunity
             </div>
 
             <h2 className="text-2xl font-semibold mb-2">
-              Reveal protected investor identity
+              Start investor opportunity
             </h2>
 
             <p className="text-sm text-gray-400 mb-5">
-              Use reveal credits or purchase an access plan to unlock name, firm, email, LinkedIn and contact details.
+              Open this Opportunity to let TD Venture initiate and track investor outreach. Contact details remain protected at this stage.
             </p>
 
             <div className="border border-lime-500/40 rounded-lg p-4 mb-5 bg-lime-400/5">
@@ -163,42 +185,43 @@ export default function DiscoverInvestorsPage() {
                 <div className="h-2 bg-lime-400 rounded-full" style={{ width: `${selectedMatch.match_score}%` }} />
               </div>
               <div className="mt-3 text-sm text-gray-400">
-                Current identity status: <span className="text-yellow-300">Protected</span>
+                Current identity status:{' '}
+                <span className="text-yellow-300">
+                  Protected
+                </span>
               </div>
             </div>
 
             <div className="space-y-3 mb-6">
-              <button className="w-full text-left border border-lime-500/50 rounded-lg p-4 hover:bg-lime-400 hover:text-black">
-                <div className="font-semibold">Use 1 Reveal Credit</div>
-                <div className="text-sm opacity-80">Recommended if you already have credits.</div>
-              </button>
-              <button className="w-full text-left border border-blue-500/50 rounded-lg p-4 hover:bg-blue-400 hover:text-black">
-                <div className="font-semibold">Buy 10 Reveals — ₹999</div>
-                <div className="text-sm opacity-80">Best for active fundraising outreach.</div>
-              </button>
-              <button className="w-full text-left border border-yellow-500/50 rounded-lg p-4 hover:bg-yellow-300 hover:text-black">
-                <div className="font-semibold">Sector Pass — ₹9,999</div>
-                <div className="text-sm opacity-80">Unlock investors in one selected sector.</div>
-              </button>
-              <button className="w-full text-left border border-red-500/50 rounded-lg p-4 hover:bg-red-400 hover:text-black">
-                <div className="font-semibold">All Investors — ₹49,999</div>
-                <div className="text-sm opacity-80">Full investor database access.</div>
-              </button>
+              <div className="rounded-lg border border-lime-500/50 bg-lime-400/5 p-4">
+                <div className="font-semibold text-lime-300">
+                  Investor identity remains protected
+                </div>
+                <p className="mt-2 text-sm leading-6 text-gray-400">
+                  Starting this Opportunity asks TD Venture to initiate
+                  and track investor outreach. Contact details are not
+                  released merely because an Opportunity is opened.
+                </p>
+              </div>
             </div>
+
+            {dealError && (
+              <div className="mb-4 rounded-md border border-red-500/50 bg-red-500/10 p-4">
+                <div className="font-semibold text-red-300">
+                  Opportunity could not be started
+                </div>
+                <p className="mt-1 text-sm text-gray-300">
+                  {dealError}
+                </p>
+              </div>
+            )}
 
             {dealCreated && (
               <div className="border border-lime-500/60 rounded-md p-4 bg-lime-400/10 mb-4">
                 <div className="font-semibold text-lime-300">Opportunity started: Interested.</div>
                 <p className="text-sm text-gray-400 mt-1">
-                  Next step: complete payment/reveal. Then TD Venture Deal Desk will notify the other party.
+                  TD Venture will manage and track investor outreach through this Opportunity. The investor identity remains protected until the investor chooses to engage.
                 </p>
-                <button
-                  type="button"
-                  className="mt-3 rounded-md bg-lime-400 text-black px-4 py-2 font-semibold"
-                  onClick={() => { setSelectedMatch(null); window.location.href = '/payments'; }}
-                >
-                  Continue to Payments
-                </button>
               </div>
             )}
 
@@ -209,7 +232,7 @@ export default function DiscoverInvestorsPage() {
               <button
                 type="button"
                 className="rounded-md bg-lime-400 text-black px-5 py-2 font-semibold disabled:opacity-60"
-                disabled={createDeal.isPending}
+                disabled={createDeal.isPending || dealCreated}
                 onClick={() => {
                   createDeal.mutate({
                     match_id: selectedMatch.id,
@@ -219,7 +242,11 @@ export default function DiscoverInvestorsPage() {
                   });
                 }}
               >
-                {createDeal.isPending ? 'Starting Opportunity...' : 'Start Opportunity'}
+                {dealCreated
+                  ? 'Opportunity Started'
+                  : createDeal.isPending
+                    ? 'Starting Opportunity...'
+                    : 'Start Opportunity'}
               </button>
             </div>
           </div>

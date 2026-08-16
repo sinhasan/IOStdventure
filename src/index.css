@@ -298,3 +298,46 @@ button,
   background: var(--primary);
   color: var(--primary-foreground);
 }
+
+/* TDV DEAL DESK — PRIVATE MARKETPLACE SHELL ALIGNMENT */
+
+.tdv-dealdesk-shell {
+  background:
+    linear-gradient(
+      rgba(255,255,255,0.018) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(255,255,255,0.018) 1px,
+      transparent 1px
+    ),
+    var(--background);
+  background-size: 48px 48px;
+}
+
+.tdv-dealdesk-shell input,
+.tdv-dealdesk-shell textarea,
+.tdv-dealdesk-shell select {
+  background-color: var(--card) !important;
+  color: var(--foreground) !important;
+  border-color: var(--input) !important;
+}
+
+.tdv-dealdesk-shell input::placeholder,
+.tdv-dealdesk-shell textarea::placeholder {
+  color: var(--muted-foreground) !important;
+}
+
+.tdv-dealdesk-shell input:focus,
+.tdv-dealdesk-shell textarea:focus,
+.tdv-dealdesk-shell select:focus {
+  outline-color: var(--ring) !important;
+  border-color: var(--ring) !important;
+  box-shadow: 0 0 0 2px
+    color-mix(in oklab, var(--ring) 16%, transparent) !important;
+}
+
+.tdv-dealdesk-shell button {
+  border-color: var(--border);
+}
