@@ -35,14 +35,38 @@ function scrubLaunchParameters(): void {
   );
 }
 
-function resolveLaunchDestination(): '/' | '/discover/startups' {
-  const requested = new URL(
+function resolveLaunchDestination(): string {
+  const launchUrl = new URL(
     window.location.href
-  ).searchParams.get('next');
+  );
 
-  return requested === '/discover/startups'
-    ? '/discover/startups'
-    : '/';
+  const requested =
+    launchUrl.searchParams.get('next');
+
+  if (requested !== '/discover/startups') {
+    return '/';
+  }
+
+  const startupId = String(
+    launchUrl.searchParams.get('startup_id') || ''
+  ).trim();
+
+  if (!startupId) {
+    return '/discover/startups';
+  }
+
+  const validStartupId =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      .test(startupId);
+
+  if (!validStartupId) {
+    return '/discover/startups';
+  }
+
+  return (
+    '/discover/startups?startup_id=' +
+    encodeURIComponent(startupId)
+  );
 }
 
 async function exchangeLaunchToken(

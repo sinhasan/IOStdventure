@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getDealFlow, listStartupMatches, startOpportunity } from '@/lib/api';
 
 const tierTone: Record<string, string> = {
@@ -75,7 +75,12 @@ function evidenceInputCount(match: any) {
 
 export default function DiscoverStartupsPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
+
+  const contextStartupId = String(
+    searchParams.get('startup_id') || ''
+  ).trim();
   const [tier, setTier] = useState('');
   const [search, setSearch] = useState('');
   const [reviewThreshold, setReviewThreshold] = useState(50);
@@ -163,8 +168,40 @@ export default function DiscoverStartupsPage() {
       return Number(b.match_score || 0) - Number(a.match_score || 0);
     });
 
+    if (contextStartupId) {
+      const contextIndex = filtered.findIndex(
+        (item: any) =>
+          String(item.startup_id || '') ===
+          contextStartupId
+      );
+
+      if (contextIndex > 0) {
+        const [contextMatch] =
+          filtered.splice(contextIndex, 1);
+
+        filtered.unshift(contextMatch);
+      } else if (contextIndex < 0) {
+        const contextMatch = data.find(
+          (item: any) =>
+            String(item.startup_id || '') ===
+            contextStartupId
+        );
+
+        if (contextMatch) {
+          filtered.unshift(contextMatch);
+        }
+      }
+    }
+
     return topQueueOnly ? filtered.slice(0, 40) : filtered;
-  }, [data, search, reviewThreshold, evidenceFilter, topQueueOnly]);
+  }, [
+    data,
+    search,
+    reviewThreshold,
+    evidenceFilter,
+    topQueueOnly,
+    contextStartupId,
+  ]);
 
   const inventory = useMemo(
     () => ({
@@ -317,6 +354,13 @@ export default function DiscoverStartupsPage() {
             Reset the filters or strengthen your investor application so the matching engine
             can compare sector, stage, geography and ticket range.
           </p>
+        </div>
+      )}
+
+      {contextStartupId && (
+        <div className="mt-5 rounded-lg border border-cyan-400/30 bg-cyan-400/5 px-4 py-3 text-xs text-cyan-100">
+          Conversion handoff · Selected startup context preserved.
+          The corresponding genuine startup match is shown first.
         </div>
       )}
 
