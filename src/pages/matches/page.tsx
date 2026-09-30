@@ -2,8 +2,8 @@ import { DueDiligenceWorkroom } from '@/components/DueDiligenceWorkroom';
 import { InvestmentDecisionControls } from '@/components/InvestmentDecisionControls';
 import { MeetingLifecycleControls } from '@/components/MeetingLifecycleControls';
 import { Gate0InvestorDocuments } from '@/components/Gate0InvestorDocuments';
-import { Gate0ConversionLaunch } from '@/components/Gate0ConversionLaunch';
 import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   getDealFlow,
@@ -18,16 +18,23 @@ import {
   updateGate0Requirement,
   scheduleOpportunityMeeting,
   sendInvestorInvitation,
+  submitResponseDecision,
+  respondToMeetingInvitation,
 } from '@/lib/api';
 
 const stages = [
   { key: 'interested', label: 'Opportunity Started' },
   { key: 'investor_notified', label: 'Outreach Initiated' },
   { key: 'waiting_response', label: 'Awaiting Response' },
+  { key: 'cold', label: 'Cold · No Response' },
   { key: 'accepted', label: 'Meeting Requested' },
   { key: 'meeting_scheduled', label: 'Meeting Scheduled' },
   { key: 'due_diligence', label: 'Due Diligence' },
+  { key: 'deal_concluded', label: 'Deal Conclusion' },
+  { key: 'negotiation_on', label: 'Negotiation On' },
+  { key: 'funding', label: 'Funding' },
   { key: 'funded', label: 'Funded' },
+  { key: 'archived', label: 'Archived' },
 ];
 
 const workspaceTabs = [
@@ -95,14 +102,42 @@ function getPriority(opportunity: any) {
 
 function getWorkspaceAction(opportunity: any) {
   const status = opportunity?.status || 'interested';
+  const direction = String(opportunity?.direction || '').toLowerCase();
 
-  if (status === 'interested') return opportunity?.direction === 'investor_to_startup' ? 'TD Venture to contact the founder and confirm interest in the introduction.' : 'TD Venture to contact the investor through a protected Opportunity invitation.';
+  if (status === 'interested') return direction === 'investor_to_startup'
+    ? (opportunity?.next_action || 'Awaiting founder response through the protected Deal Desk workflow.')
+    : 'Open this Opportunity and select Initiate Investor Outreach. Deal Desk will send the protected invitation automatically.';
+
   if (status === 'payment_pending') return 'Complete qualification and prepare protected outreach.';
   if (status === 'payment_complete') return 'Initiate protected outreach from Deal Desk.';
-  if (status === 'investor_notified') return "Monitor the contacted party's response and prepare follow-up.";
+  if (status === 'investor_notified') return opportunity?.next_action || 'Protected outreach initiated. Awaiting investor response.';
+
+  if (status === 'response_received') {
+    if (direction === 'startup_to_investor') {
+      return opportunity?.next_action || 'Startup to review the investor response and choose the next step';
+    }
+
+    if (direction === 'investor_to_startup') {
+      return opportunity?.next_action || 'Investor to review the founder response and choose the next step';
+    }
+
+    return opportunity?.next_action || 'The responding party has replied. The initiating party should choose the next step.';
+  }
+
   if (status === 'delivery_issue') return opportunity?.next_best_action || opportunity?.next_action || 'Verify the recipient email or communication route before any further outreach.';
-  if (status === 'waiting_response') return 'Follow up with the contacted party if the response window is breached.';
-  if (status === 'accepted') return 'Coordinate the first founder-investor meeting.';
+  if (status === 'waiting_response') return opportunity?.next_action || 'Automatic follow-up sequence is active. Awaiting the other party response.';
+  if (status === 'cold') return opportunity?.next_action || 'No response after the automatic outreach sequence. Opportunity is Cold.';
+
+  if (status === 'accepted') {
+    if (direction === 'startup_to_investor') {
+      return opportunity?.next_action || 'Startup to coordinate the first founder-investor meeting';
+    }
+    if (direction === 'investor_to_startup') {
+      return opportunity?.next_action || 'Investor to coordinate the first founder-investor meeting';
+    }
+    return opportunity?.next_action || 'Coordinate the first founder-investor meeting.';
+  }
+
   if (status === 'meeting_scheduled') return 'Prepare meeting brief and diligence questions.';
   if (status === 'due_diligence') return 'Collect documents and prepare IC recommendation.';
   if (status === 'funded') return 'Record the final outcome and move to portfolio tracking.';
@@ -461,15 +496,27 @@ function buildDecisionActionNote(opportunity: any, action: string, notes: any[] 
   const readiness = getICReadinessScore(opportunity, notes);
   const nextAction = getWorkspaceAction(opportunity);
 
-  if (action === 'followup_founder') {
+  if (action === 'review_response') {
+    const direction = String(opportunity?.direction || '').toLowerCase();
+    const responsibleParty =
+      direction === 'startup_to_investor' ? 'Startup' :
+      direction === 'investor_to_startup' ? 'Investor' :
+      'Initiating party';
+
+    const respondingParty =
+      direction === 'startup_to_investor' ? 'investor' :
+      direction === 'investor_to_startup' ? 'founder' :
+      'other party';
+
     return [
-      `Decision Action Logged: Follow up with founder`,
+      `Decision Action Logged: ${responsibleParty} to review ${respondingParty} response`,
       ``,
       `Opportunity: ${code}`,
       `Startup: ${startup}`,
       `Investor: ${investor}`,
       ``,
-      `Deal Desk should follow up with the founder on the current opportunity status and confirm next required movement.`,
+      `${responsibleParty} is responsible for reviewing the response and choosing the next commercial step.`,
+      `TD Venture Deal Desk remains the protected operating layer and records the workflow.`,
       `Suggested next action: ${nextAction}`,
       ``,
       `Logged from TD Venture IOS Quick Actions.`,
@@ -895,6 +942,21 @@ export default function OpportunitiesPage() {
   const [selected, setSelected] = useState<any | null>(null);
   const [noteText, setNoteText] = useState('');
   const [copiedAction, setCopiedAction] = useState<string | null>(null);
+  const [meetingInvitationMessage, setMeetingInvitationMessage] = useState('');
+  const [showSuggestTimeForm, setShowSuggestTimeForm] = useState(false);
+  const [suggestedStartAt, setSuggestedStartAt] = useState('');
+  const [suggestedEndAt, setSuggestedEndAt] = useState('');
+  const [suggestedTimezone, setSuggestedTimezone] = useState(
+    Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata'
+  );
+  const [meetingProposalStart, setMeetingProposalStart] = useState('');
+  const [meetingProposalEnd, setMeetingProposalEnd] = useState('');
+  const [meetingProposalTimezone, setMeetingProposalTimezone] = useState(
+    Intl.DateTimeFormat().resolvedOptions().timeZone === 'Asia/Calcutta'
+      ? 'Asia/Kolkata'
+      : Intl.DateTimeFormat().resolvedOptions().timeZone
+      || 'Asia/Kolkata'
+  );
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState('overview');
   const [gate0Notes, setGate0Notes] = useState<Record<string, string>>({});
   const [meetingActionError, setMeetingActionError] = useState('');
@@ -994,8 +1056,48 @@ export default function OpportunitiesPage() {
   const conversionBrief = conversionBriefResponse?.brief;
 
 
+  const currentRole =
+    String(currentUser?.role || '').toLowerCase();
+
   const isAdmin =
-    String(currentUser?.role || '').toLowerCase() === 'admin';
+    currentRole === 'admin';
+
+  const canFounderInitiateInvestorOutreach =
+    Boolean(
+      ['startup', 'founder'].includes(currentRole)
+      && selected?.direction === 'startup_to_investor'
+        && String(selected?.status || 'interested') === 'interested'
+    );
+
+  // Directional actor derivation. `initiator_role` / `destination_role`
+  // and `initiator_name` / `destination_name` are computed server-side
+  // in get_deal_flow from deal_flow.direction, which remains the single
+  // source of truth. The UI only maps the viewer's own role onto
+  // whichever side (`startup`/`investor`) that role corresponds to.
+  const initiatorRole =
+    String(selected?.initiator_role || '').toLowerCase();
+
+  const destinationRole =
+    String(selected?.destination_role || '').toLowerCase();
+
+  const roleMatchesParty = (partyRole: string) =>
+    partyRole === 'startup'
+      ? ['startup', 'founder'].includes(currentRole)
+      : partyRole === 'investor'
+        ? currentRole === 'investor'
+        : false;
+
+  const isInitiatingParty =
+    Boolean(initiatorRole) && roleMatchesParty(initiatorRole);
+
+  const isDestinationParty =
+    Boolean(destinationRole) && roleMatchesParty(destinationRole);
+
+  const initiatorName =
+    selected?.initiator_name || 'The initiating party';
+
+  const destinationName =
+    selected?.destination_name || 'The other party';
 
   const meetingRecord =
     meetingCoordination?.meeting || null;
@@ -1030,9 +1132,26 @@ export default function OpportunitiesPage() {
           opportunityId
         ),
 
-      onSuccess: async () => {
+      onSuccess: async (result: any) => {
+        const nextDate = result?.next_followup_at
+          ? new Date(
+              result.next_followup_at
+            ).toLocaleDateString()
+          : 'in 7 days';
+
         setInvestorInviteMessage(
-          'Investor invitation sent successfully.'
+          `Investor outreach initiated. Protected invitation sent. Next automatic follow-up: ${nextDate}. No founder action required.`
+        );
+
+        setSelected((previous: any) =>
+          previous
+            ? {
+                ...previous,
+                status: 'investor_notified',
+                next_action:
+                  `Initial protected invitation sent automatically. Next automatic follow-up: ${nextDate}. No founder action required.`,
+              }
+            : previous
         );
 
         await Promise.all([
@@ -1059,6 +1178,79 @@ export default function OpportunitiesPage() {
     onSuccess: () => {
       setNoteText('');
       refetchNotes();
+    },
+  });
+
+
+  const responseDecision = useMutation({
+    mutationFn: ({
+      id,
+      action,
+    }: {
+      id: string;
+      action: 'request_meeting' | 'continue_discussion' | 'not_proceed';
+    }) => submitResponseDecision(id, action),
+
+    onSuccess: async () => {
+      setCopiedAction('response-decision-success');
+      await Promise.all([
+        refetch(),
+        refetchMeetingCoordination(),
+      ]);
+      window.setTimeout(
+        () => setCopiedAction(null),
+        1800
+      );
+    },
+
+    onError: (error: any) => {
+      setCopiedAction(
+        error?.message || 'Unable to record the response decision.'
+      );
+      window.setTimeout(
+        () => setCopiedAction(null),
+        3000
+      );
+    },
+  });
+
+
+  const meetingInvitationResponse = useMutation({
+    mutationFn: ({
+      id,
+      action,
+      proposed_start_at,
+      proposed_end_at,
+      proposed_timezone,
+    }: {
+      id: string;
+      action: 'accept' | 'suggest_time' | 'decline';
+      proposed_start_at?: string;
+      proposed_end_at?: string;
+      proposed_timezone?: string;
+    }) =>
+      respondToMeetingInvitation(id, action, {
+        proposed_start_at,
+        proposed_end_at,
+        proposed_timezone,
+      }),
+
+    onSuccess: async (result: any) => {
+      setMeetingInvitationMessage(
+        result?.next_action || 'Meeting invitation response recorded.'
+      );
+
+      await Promise.all([
+        refetch(),
+        refetchMeetingCoordination(),
+        refetchTimeline(),
+      ]);
+    },
+
+    onError: (error: any) => {
+      setMeetingInvitationMessage(
+        error?.message || 'Unable to respond to the meeting invitation.'
+      );
     },
   });
 
@@ -1277,7 +1469,9 @@ export default function OpportunitiesPage() {
           Manage every active opportunity from start to funding. This is the operating layer above Match Fit and qualification signals.
         </p>
         <div className="mt-4 text-sm text-lime-300">
-          Opportunity Started → Outreach Initiated → Awaiting Response → Meeting Requested → Meeting Scheduled → Due Diligence → Funded
+          Opportunity Started → Outreach Initiated → Awaiting Response → Meeting Requested → Meeting Scheduled → Due Diligence → Deal Conclusion → Negotiation On → Funding → Funded → Closure Report
+          <br />
+          Non-completion outcome at any stage: Archived (reason recorded)
         </div>
       </div>
 
@@ -1409,7 +1603,7 @@ export default function OpportunitiesPage() {
           </p>
 
           <a
-            href="https://staging.tdventure.vc"
+            href="https://crm.tdventure.vc/matches"
             target="_blank"
             rel="noreferrer"
             className="mt-5 inline-flex rounded-md bg-lime-400 px-4 py-2 text-sm font-bold text-black shadow-[0_0_22px_rgba(163,255,18,0.75)] transition hover:bg-lime-300"
@@ -1455,6 +1649,8 @@ export default function OpportunitiesPage() {
 
                   <div className="space-y-2 text-sm">
                     <div><span className="text-gray-500">Status:</span> {stages.find((s) => s.key === status)?.label || status}</div>
+                    <div><span className="text-gray-500">Initiated By:</span> {o.initiator_name || 'Not recorded'}</div>
+                    <div><span className="text-gray-500">Destination:</span> {o.destination_name || 'Not recorded'}</div>
                     <div><span className="text-gray-500">Sector:</span> {o.sector || o.focus_sectors || 'Not disclosed'}</div>
                     <div><span className="text-gray-500">Stage:</span> {o.stage || 'Not disclosed'}</div>
                     <div><span className="text-gray-500">Ask:</span> {o.ask || 'Not disclosed'}</div>
@@ -1518,7 +1714,9 @@ export default function OpportunitiesPage() {
 
               <div className="border border-yellow-500/30 rounded-md p-3">
                 <div className="text-yellow-300 font-semibold">Outreach Needed</div>
-                <p className="mt-1">{chiefBrief?.totals?.outreach_needed ?? 0} opportunities need TD Venture outreach.</p>
+                <p className="mt-1">
+                  {chiefBrief?.totals?.outreach_needed ?? 0} opportunities require directional outreach.
+                </p>
               </div>
 
               <div className="border border-red-500/30 rounded-md p-3">
@@ -1565,8 +1763,8 @@ export default function OpportunitiesPage() {
         </div>
       )}
 
-      {selected && (
-        <div className="fixed inset-0 z-50 bg-black/85 p-4 overflow-y-auto">
+      {selected && createPortal((
+        <div className="fixed inset-0 z-[70] bg-[#050706] p-4 overflow-y-auto">
           <div className="mx-auto my-4 w-full max-w-5xl border border-lime-500/70 bg-black rounded-xl p-6 shadow-[0_0_35px_rgba(163,255,18,0.25)]">
             <div className="sticky top-0 z-20 -mx-6 -mt-6 mb-5 flex justify-between items-start border-b border-lime-500/30 bg-black/95 px-6 py-4 backdrop-blur">
               <div>
@@ -1584,6 +1782,41 @@ export default function OpportunitiesPage() {
                 ← Back to Matches
               </button>
             </div>
+
+            {canFounderInitiateInvestorOutreach && (
+              <div className="mb-5 rounded-lg border border-lime-500/50 bg-lime-500/[0.06] p-4">
+                <div className="text-xs uppercase tracking-[0.22em] text-lime-300">
+                  Next Step
+                </div>
+                <div className="mt-2 text-lg font-semibold text-white">
+                  Initiate investor outreach
+                </div>
+                <p className="mt-2 text-sm leading-6 text-gray-400">
+                  Send the protected Opportunity invitation now. Deal Desk will follow up automatically after 7 days, 14 days and 30 days if the investor has not responded.
+                </p>
+                <button
+                  type="button"
+                  disabled={sendInvestorInvite.isPending}
+                  onClick={() => {
+                    setInvestorInviteMessage('');
+                    sendInvestorInvite.mutate(
+                      String(selected.id)
+                    );
+                  }}
+                  className="mt-4 rounded-md bg-lime-400 px-4 py-2.5 text-sm font-semibold text-black transition hover:brightness-95 disabled:cursor-wait disabled:opacity-50"
+                >
+                  {sendInvestorInvite.isPending
+                    ? 'Initiating Outreach…'
+                    : 'Initiate Investor Outreach →'}
+                </button>
+              </div>
+            )}
+
+            {investorInviteMessage && (
+              <div className="mb-5 rounded-lg border border-cyan-500/40 bg-cyan-500/[0.06] p-4 text-sm leading-6 text-cyan-100">
+                {investorInviteMessage}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
               <div className="border border-lime-500/40 rounded-lg p-4">
@@ -1682,32 +1915,259 @@ export default function OpportunitiesPage() {
 
                 <div className="border border-lime-500/30 rounded-md p-3">
                   <div className="text-sm font-semibold text-lime-300 mb-3">Quick Actions</div>
+
+                  {selected?.status === 'response_received' && (
+                    <div className="space-y-3 rounded-md border border-lime-500/25 bg-black/20 p-3">
+                      {(isInitiatingParty || isAdmin) ? (
+                        <>
+                          <div>
+                            <div className="text-sm font-semibold text-lime-200">
+                              {initiatorRole === 'investor'
+                                ? 'Investor Decision'
+                                : 'Startup Decision'}
+                            </div>
+                            <div className="mt-1 text-xs text-gray-400">
+                              {initiatorRole === 'investor'
+                                ? 'The founder has responded. The investor can choose the next step.'
+                                : 'The investor has responded. The startup can choose the next step.'}
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            disabled={responseDecision.isPending}
+                            className="w-full rounded-md border border-blue-500/50 px-3 py-2 text-left font-semibold text-blue-300 transition hover:bg-blue-500/15 hover:text-white disabled:opacity-50"
+                            onClick={() => responseDecision.mutate({ id: selected.id, action: 'request_meeting' })}
+                          >
+                            Request Meeting
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={responseDecision.isPending}
+                            className="w-full rounded-md border border-lime-500/50 px-3 py-2 text-left text-lime-300 transition hover:bg-lime-500/15 hover:text-white disabled:opacity-50"
+                            onClick={() => responseDecision.mutate({ id: selected.id, action: 'continue_discussion' })}
+                          >
+                            Continue Discussion
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={responseDecision.isPending}
+                            className="w-full rounded-md border border-red-500/40 px-3 py-2 text-left text-red-300 transition hover:bg-red-500/10 hover:text-white disabled:opacity-50"
+                            onClick={() => responseDecision.mutate({ id: selected.id, action: 'not_proceed' })}
+                          >
+                            Not Proceed
+                          </button>
+                        </>
+                      ) : (
+                        <div>
+                          <div className="text-sm font-semibold text-lime-200">
+                            Response Recorded
+                          </div>
+                          <div className="mt-1 text-xs text-gray-400">
+                            {initiatorName} will review this and choose the next step.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {selected?.status === 'accepted' && meetingRecord && (
+                    <div className="space-y-3 rounded-md border border-blue-500/25 bg-black/20 p-3">
+                      {meetingRecord.invitation_status === 'pending' && isDestinationParty && (
+                        <>
+                          <div>
+                            <div className="text-sm font-semibold text-blue-200">
+                              Meeting Request Received
+                            </div>
+                            <div className="mt-1 text-xs text-gray-400">
+                              {initiatorName} has requested a founder-investor meeting.
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            disabled={meetingInvitationResponse.isPending}
+                            className="w-full rounded-md border border-blue-500/50 px-3 py-2 text-left font-semibold text-blue-300 transition hover:bg-blue-500/15 hover:text-white disabled:opacity-50"
+                            onClick={() => meetingInvitationResponse.mutate({ id: selected.id, action: 'accept' })}
+                          >
+                            Accept Meeting
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={meetingInvitationResponse.isPending}
+                            className="w-full rounded-md border border-lime-500/50 px-3 py-2 text-left text-lime-300 transition hover:bg-lime-500/15 hover:text-white disabled:opacity-50"
+                            onClick={() => setShowSuggestTimeForm((current) => !current)}
+                          >
+                            Suggest Another Time
+                          </button>
+
+                          {showSuggestTimeForm && (
+                            <div className="space-y-2 rounded-md border border-white/10 bg-black/30 p-2">
+                              <label className="block text-xs text-gray-400">
+                                Proposed start
+                                <input
+                                  type="datetime-local"
+                                  value={suggestedStartAt}
+                                  onChange={(event) => setSuggestedStartAt(event.target.value)}
+                                  className="mt-1 w-full rounded-md border border-gray-700 bg-black px-3 py-2 text-white"
+                                />
+                              </label>
+                              <label className="block text-xs text-gray-400">
+                                Proposed end
+                                <input
+                                  type="datetime-local"
+                                  value={suggestedEndAt}
+                                  onChange={(event) => setSuggestedEndAt(event.target.value)}
+                                  className="mt-1 w-full rounded-md border border-gray-700 bg-black px-3 py-2 text-white"
+                                />
+                              </label>
+                              <label className="block text-xs text-gray-400">
+                                Timezone
+                                <input
+                                  value={suggestedTimezone}
+                                  onChange={(event) => setSuggestedTimezone(event.target.value)}
+                                  className="mt-1 w-full rounded-md border border-gray-700 bg-black px-3 py-2 text-white"
+                                />
+                              </label>
+                              <button
+                                type="button"
+                                disabled={
+                                  meetingInvitationResponse.isPending
+                                  || !suggestedStartAt
+                                  || !suggestedEndAt
+                                }
+                                className="w-full rounded-md border border-lime-500/40 px-3 py-2 text-left text-lime-300 transition hover:bg-lime-500/10 hover:text-white disabled:opacity-50"
+                                onClick={() => {
+                                  const start = new Date(suggestedStartAt);
+                                  const end = new Date(suggestedEndAt);
+                                  meetingInvitationResponse.mutate({
+                                    id: selected.id,
+                                    action: 'suggest_time',
+                                    proposed_start_at: start.toISOString(),
+                                    proposed_end_at: end.toISOString(),
+                                    proposed_timezone: suggestedTimezone,
+                                  });
+                                  setShowSuggestTimeForm(false);
+                                }}
+                              >
+                                Submit Proposed Time
+                              </button>
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            disabled={meetingInvitationResponse.isPending}
+                            className="w-full rounded-md border border-red-500/40 px-3 py-2 text-left text-red-300 transition hover:bg-red-500/10 hover:text-white disabled:opacity-50"
+                            onClick={() => meetingInvitationResponse.mutate({ id: selected.id, action: 'decline' })}
+                          >
+                            Decline Meeting
+                          </button>
+                        </>
+                      )}
+
+                      {meetingRecord.invitation_status === 'pending' && isInitiatingParty && (
+                        <div>
+                          <div className="text-sm font-semibold text-blue-200">
+                            Meeting Request Sent
+                          </div>
+                          <div className="mt-1 text-xs text-gray-400">
+                            Awaiting response from {destinationName}.
+                          </div>
+                        </div>
+                      )}
+
+                      {meetingRecord.invitation_status === 'pending' && !isDestinationParty && !isInitiatingParty && (
+                        <div className="text-xs text-gray-400">
+                          Awaiting {destinationName}'s response to the meeting invitation.
+                        </div>
+                      )}
+
+                      {meetingRecord.invitation_status === 'accepted' && (
+                        <div>
+                          <div className="text-sm font-semibold text-lime-300">
+                            Meeting Accepted
+                          </div>
+                          <div className="mt-1 text-xs text-gray-400">
+                            TD Venture is coordinating the first founder-investor meeting.
+                          </div>
+                        </div>
+                      )}
+
+                      {meetingRecord.invitation_status === 'time_change_requested' && (
+                        <div>
+                          <div className="text-sm font-semibold text-yellow-300">
+                            Alternate Time Proposed
+                          </div>
+                          <div className="mt-1 text-xs text-gray-400">
+                            Proposed: {meetingRecord.proposed_start_at
+                              ? new Date(meetingRecord.proposed_start_at).toLocaleString()
+                              : 'Pending'}
+                            {meetingRecord.proposed_timezone ? ` (${meetingRecord.proposed_timezone})` : ''}
+                          </div>
+                          <div className="mt-1 text-xs text-gray-400">
+                            TD Venture to review the proposed time and coordinate scheduling.
+                          </div>
+                        </div>
+                      )}
+
+                      {meetingRecord.invitation_status === 'declined' && (
+                        <div className="space-y-2">
+                          <div>
+                            <div className="text-sm font-semibold text-red-300">
+                              Meeting Request Declined
+                            </div>
+                            <div className="mt-1 text-xs text-gray-400">
+                              {initiatorName} to choose the next step.
+                            </div>
+                          </div>
+
+                          {isInitiatingParty && (
+                            <>
+                              <button
+                                type="button"
+                                disabled={responseDecision.isPending}
+                                className="w-full rounded-md border border-blue-500/50 px-3 py-2 text-left font-semibold text-blue-300 transition hover:bg-blue-500/15 hover:text-white disabled:opacity-50"
+                                onClick={() => responseDecision.mutate({ id: selected.id, action: 'request_meeting' })}
+                              >
+                                Request Meeting Again
+                              </button>
+
+                              <button
+                                type="button"
+                                disabled={responseDecision.isPending}
+                                className="w-full rounded-md border border-lime-500/50 px-3 py-2 text-left text-lime-300 transition hover:bg-lime-500/15 hover:text-white disabled:opacity-50"
+                                onClick={() => responseDecision.mutate({ id: selected.id, action: 'continue_discussion' })}
+                              >
+                                Continue Discussion
+                              </button>
+
+                              <button
+                                type="button"
+                                disabled={responseDecision.isPending}
+                                className="w-full rounded-md border border-red-500/40 px-3 py-2 text-left text-red-300 transition hover:bg-red-500/10 hover:text-white disabled:opacity-50"
+                                onClick={() => responseDecision.mutate({ id: selected.id, action: 'not_proceed' })}
+                              >
+                                Not Proceed
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+
+                      {meetingInvitationMessage && (
+                        <div className="rounded-md border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-300">
+                          {meetingInvitationMessage}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 gap-2 text-sm">
-                    <button
-                      type="button"
-                      disabled={addNote.isPending}
-                      className={
-                        copiedAction === 'action-founder'
-                          ? 'rounded-md bg-lime-400 px-3 py-2 text-left font-semibold text-black transition'
-                          : 'rounded-md border border-lime-500/50 px-3 py-2 text-left text-lime-300 transition hover:bg-lime-500/20 hover:text-white active:scale-[0.99] disabled:opacity-50'
-                      }
-                      onClick={() => {
-                        addNote.mutate(
-                          {
-                            id: selected.id,
-                            note: buildDecisionActionNote(selected, 'followup_founder', selectedNotes),
-                          },
-                          {
-                            onSuccess: () => {
-                              setCopiedAction('action-founder');
-                              window.setTimeout(() => setCopiedAction(null), 1500);
-                            },
-                          }
-                        );
-                      }}
-                    >
-                      {copiedAction === 'action-founder' ? 'Action logged ✓' : 'Follow up with founder'}
-                    </button>
+
 
                     <button
                       type="button"
@@ -2529,9 +2989,45 @@ export default function OpportunitiesPage() {
                 </div>
               </div>
 
-              <Gate0ConversionLaunch
-                opportunityId={selected?.id}
-              />
+              <div className="mt-4 rounded-xl border border-cyan-500/25 bg-cyan-500/[0.05] p-4">
+                {!meetingRecord ? (
+                  <>
+                    <div className="text-xs font-semibold text-cyan-200">
+                      Gate 0 starts when a meeting is requested
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-gray-400">
+                      Your existing Founder Evidence and Conversion work remain part of the startup record and are not repeated for each opportunity. When a meeting is requested, Deal Desk opens the four Gate 0 document checks here for this specific investor opportunity.
+                    </p>
+                  </>
+                ) : gate0Summary.ready_to_schedule ? (
+                  <>
+                    <div className="text-xs font-semibold text-lime-300">
+                      Gate 0 Verified — Ready to Schedule
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-gray-400">
+                      TD Venture may now schedule the first founder-investor meeting.
+                    </p>
+                  </>
+                ) : gate0Summary.provided === 4 ? (
+                  <>
+                    <div className="text-xs font-semibold text-blue-200">
+                      Awaiting TD Venture Verification
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-gray-400">
+                      All four Gate 0 documents have been provided. TD Venture is reviewing and verifying readiness.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-xs font-semibold text-cyan-200">
+                      Complete Gate 0
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-gray-400">
+                      Your meeting request has been accepted. Provide the required Gate 0 documents so TD Venture can verify readiness and move the meeting to scheduling.
+                    </p>
+                  </>
+                )}
+              </div>
 
               <Gate0InvestorDocuments
                 opportunityId={selected?.id}
@@ -2965,6 +3461,8 @@ export default function OpportunitiesPage() {
                 <div className="space-y-2 text-sm">
                   <div><span className="text-gray-500">Startup:</span> {selected.startup_name || 'Protected'}</div>
                   <div><span className="text-gray-500">Investor:</span> {selected.firm || 'Protected'}</div>
+                  <div><span className="text-gray-500">Initiated By:</span> {selected.initiator_name || 'Not recorded'}</div>
+                  <div><span className="text-gray-500">Destination:</span> {selected.destination_name || 'Not recorded'}</div>
                   <div><span className="text-gray-500">Sector:</span> {selected.sector || selected.focus_sectors || 'Not disclosed'}</div>
                   <div><span className="text-gray-500">Stage:</span> {selected.stage || 'Not disclosed'}</div>
                   <div><span className="text-gray-500">Capital:</span> {selected.ask || 'Not disclosed'}</div>
@@ -3045,7 +3543,7 @@ export default function OpportunitiesPage() {
 
                   <div className="flex items-center gap-2">
                     <span className={`h-3 w-3 rounded-full ${
-                      ["payment_complete","investor_notified","delivery_issue","waiting_response","accepted","meeting_scheduled","due_diligence","funded"].includes(selected.status)
+                      ["payment_complete","investor_notified","delivery_issue","waiting_response","accepted","meeting_scheduled","due_diligence","deal_concluded","negotiation_on","funding","funded"].includes(selected.status)
                         ? "bg-lime-400"
                         : "border border-gray-500"
                     }`}></span>
@@ -3056,7 +3554,7 @@ export default function OpportunitiesPage() {
 
                   <div className="flex items-center gap-2">
                     <span className={`h-3 w-3 rounded-full ${
-                      ["investor_notified","delivery_issue","waiting_response","accepted","meeting_scheduled","due_diligence","funded"].includes(selected.status)
+                      ["investor_notified","delivery_issue","waiting_response","accepted","meeting_scheduled","due_diligence","deal_concluded","negotiation_on","funding","funded"].includes(selected.status)
                         ? "bg-lime-400"
                         : "border border-gray-500"
                     }`}></span>
@@ -3076,7 +3574,7 @@ export default function OpportunitiesPage() {
 
                   <div className="flex items-center gap-2">
                     <span className={`h-3 w-3 rounded-full ${
-                      ["waiting_response","accepted","meeting_scheduled","due_diligence","funded"].includes(selected.status)
+                      ["waiting_response","accepted","meeting_scheduled","due_diligence","deal_concluded","negotiation_on","funding","funded"].includes(selected.status)
                         ? "bg-lime-400"
                         : "border border-gray-500"
                     }`}></span>
@@ -3087,7 +3585,7 @@ export default function OpportunitiesPage() {
 
                   <div className="flex items-center gap-2">
                     <span className={`h-3 w-3 rounded-full ${
-                      ["meeting_scheduled","due_diligence","funded"].includes(selected.status)
+                      ["meeting_scheduled","due_diligence","deal_concluded","negotiation_on","funding","funded"].includes(selected.status)
                         ? "bg-lime-400"
                         : "border border-gray-500"
                     }`}></span>
@@ -3098,11 +3596,44 @@ export default function OpportunitiesPage() {
 
                   <div className="flex items-center gap-2">
                     <span className={`h-3 w-3 rounded-full ${
-                      ["due_diligence","funded"].includes(selected.status)
+                      ["due_diligence","deal_concluded","negotiation_on","funding","funded"].includes(selected.status)
                         ? "bg-lime-400"
                         : "border border-gray-500"
                     }`}></span>
                     Due Diligence
+                  </div>
+
+                  <div className="ml-1 h-4 border-l border-gray-700"></div>
+
+                  <div className="flex items-center gap-2">
+                    <span className={`h-3 w-3 rounded-full ${
+                      ["deal_concluded","negotiation_on","funding","funded"].includes(selected.status)
+                        ? "bg-lime-400"
+                        : "border border-gray-500"
+                    }`}></span>
+                    Deal Conclusion
+                  </div>
+
+                  <div className="ml-1 h-4 border-l border-gray-700"></div>
+
+                  <div className="flex items-center gap-2">
+                    <span className={`h-3 w-3 rounded-full ${
+                      ["negotiation_on","funding","funded"].includes(selected.status)
+                        ? "bg-lime-400"
+                        : "border border-gray-500"
+                    }`}></span>
+                    Negotiation On
+                  </div>
+
+                  <div className="ml-1 h-4 border-l border-gray-700"></div>
+
+                  <div className="flex items-center gap-2">
+                    <span className={`h-3 w-3 rounded-full ${
+                      ["funding","funded"].includes(selected.status)
+                        ? "bg-lime-400"
+                        : "border border-gray-500"
+                    }`}></span>
+                    Funding
                   </div>
 
                   <div className="ml-1 h-4 border-l border-gray-700"></div>
@@ -3115,6 +3646,18 @@ export default function OpportunitiesPage() {
                     }`}></span>
                     Funded
                   </div>
+
+                  {selected.status === 'archived' && (
+                    <>
+                      <div className="ml-1 h-4 border-l border-gray-700"></div>
+                      <div className="ml-5 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-amber-200">
+                        <div className="font-semibold">Archived</div>
+                        <div className="mt-1 text-xs">
+                          {selected.close_reason || 'This opportunity did not proceed. No reason was recorded.'}
+                        </div>
+                      </div>
+                    </>
+                  )}
 
                 </div>
               </div>
@@ -3196,7 +3739,7 @@ export default function OpportunitiesPage() {
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
     </div>
   );
 }
