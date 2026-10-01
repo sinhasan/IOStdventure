@@ -394,7 +394,7 @@ function validateHostedPaymentUrl(checkoutUrl: string): string {
 }
 
 export async function claimDealDeskWorkspaceEntry(): Promise<WorkspaceAccessResponse> {
-  const res = await fetch(`${API_BASE}/crm/access-check`, {
+  const res = await fetch(`${API_BASE}/deal-desk/access`, {
     method: 'GET',
     headers: getAuthHeaders(),
   });
@@ -459,6 +459,143 @@ export async function startDealDeskCheckout(
   window.location.assign(checkoutUrl);
 }
 
+
+export async function startOpportunityActivationCheckout(
+  data: {
+    match_id: string;
+    startup_id: string;
+    investor_id: string;
+    direction?: string;
+  },
+  options?: { returnPath?: string }
+): Promise<void> {
+  if (typeof window === 'undefined') {
+    throw new Error(
+      'Secure checkout is available only in the browser.'
+    );
+  }
+
+  const matchId = String(data.match_id || '').trim();
+  const startupId = String(data.startup_id || '').trim();
+  const investorId = String(data.investor_id || '').trim();
+
+  const direction = String(
+    data.direction || 'startup_to_investor'
+  ).trim();
+
+  const activationPlanCode =
+    direction === 'investor_to_startup'
+      ? 'crm_opportunity_activation_199'
+      : 'crm_opportunity_activation_99';
+
+  const activationIdempotencyScope =
+    direction === 'investor_to_startup'
+      ? 'investor-opportunity-activation'
+      : 'opportunity-activation';
+
+  if (!matchId || !startupId || !investorId) {
+    throw new Error(
+      'A stored Match is required for Opportunity activation.'
+    );
+  }
+
+  const token =
+    localStorage.getItem('tdventure_token');
+
+  if (!token) {
+    throw new Error(
+      'Your TD Venture session was not found. Please sign in again.'
+    );
+  }
+
+  const requestedReturnPath =
+    String(
+      options?.returnPath || '/matches'
+    ).trim();
+
+  const safeReturnPath =
+    requestedReturnPath.startsWith('/')
+      ? requestedReturnPath
+      : '/matches';
+
+  const returnUrl = new URL(
+    safeReturnPath,
+    DEAL_DESK_WORKSPACE_URL
+  );
+
+  returnUrl.searchParams.set(
+    'opportunity_activation',
+    '1'
+  );
+
+  returnUrl.searchParams.set(
+    'match_id',
+    matchId
+  );
+
+  returnUrl.searchParams.set(
+    'startup_id',
+    startupId
+  );
+
+  returnUrl.searchParams.set(
+    'investor_id',
+    investorId
+  );
+
+  returnUrl.searchParams.set(
+    'direction',
+    direction
+  );
+
+  const res = await fetch(
+    `${TDVENTURE_PAYMENT_API_BASE}/payment-plane/intents`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        plan_code:
+          activationPlanCode,
+
+        subject_id:
+          matchId,
+
+        idempotency_key:
+          createWorkspacePaymentIdempotencyKey(
+            activationIdempotencyScope
+          ),
+
+        return_url:
+          returnUrl.toString(),
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(
+      await readWorkspaceApiError(
+        res,
+        'Opportunity Activation checkout could not be started.'
+      )
+    );
+  }
+
+  const paymentIntent =
+    await res.json() as PaymentIntentCreateResponse;
+
+  const checkoutUrl =
+    validateHostedPaymentUrl(
+      String(
+        paymentIntent.checkout_url || ''
+      ).trim()
+    );
+
+  window.location.assign(checkoutUrl);
+}
+
 // ============================================================
 // Admin (if needed)
 // ============================================================
@@ -502,16 +639,100 @@ export const recalculateMatches = async () => {
 };
 
 
-export const listInvestorMatches = async (filters?: { tier?: string }) => {
+export const listInvestorMatches = async (filters?: {
+  tier?: string;
+  sector?: string;
+  stage?: string;
+  location?: string;
+  ticket?: string;
+  minFit?: number;
+  limit?: number;
+  offset?: number;
+}) => {
   const params = new URLSearchParams();
-  if (filters?.tier) params.set('tier', filters.tier);
+
+  if (filters?.tier) {
+    params.set('tier', filters.tier);
+  }
+
+  if (filters?.sector) {
+    params.set('sector', filters.sector);
+  }
+
+  if (filters?.stage) {
+    params.set('stage', filters.stage);
+  }
+
+  if (filters?.location) {
+    params.set('location', filters.location);
+  }
+
+  if (filters?.ticket) {
+    params.set('ticket', filters.ticket);
+  }
+
+  if (
+    typeof filters?.minFit === 'number' &&
+    Number.isFinite(filters.minFit) &&
+    filters.minFit > 0
+  ) {
+    params.set(
+      'min_fit',
+      String(filters.minFit)
+    );
+  }
+
+  if (
+    typeof filters?.limit === 'number' &&
+    Number.isFinite(filters.limit)
+  ) {
+    params.set(
+      'limit',
+      String(filters.limit)
+    );
+  }
+
+  if (
+    typeof filters?.offset === 'number' &&
+    Number.isFinite(filters.offset)
+  ) {
+    params.set(
+      'offset',
+      String(filters.offset)
+    );
+  }
+
   const qs = params.toString();
-  const res = await fetch(`${API_BASE}/discover/investors/matches${qs ? `?${qs}` : ''}`, {
-    headers: getAuthHeaders(),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+
+  const res = await fetch(
+    `${API_BASE}/discover/investors/matches${qs ? `?${qs}` : ''}`,
+    {
+      headers: getAuthHeaders(),
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(
+      await res.text()
+    );
+  }
+
+  const payload = await res.json();
+
+  // Temporary backward compatibility with the
+  // former bare-array backend response.
+  if (Array.isArray(payload)) {
+    return {
+      items: payload,
+      total: payload.length,
+      limit: payload.length,
+      offset: filters?.offset ?? 0,
+    };
+  }
+
+  return payload;
 };
+
 
 export const getInvestorMatchInventory = async (filters?: {
   tier?: string;
@@ -577,6 +798,82 @@ export const getQualifiedOpportunities = async (filters?: {
     },
   );
   if (!res.ok) throw new Error(await res.text());
+  return res.json();
+};
+
+export const getOpportunityMatchState = async () => {
+  const res = await fetch(
+    `${API_BASE}/matches/opportunity-state`,
+    { headers: getAuthHeaders() }
+  );
+
+  if (!res.ok) {
+    throw new Error(
+      await readWorkspaceApiError(
+        res,
+        'Opportunity state could not be loaded.'
+      )
+    );
+  }
+
+  return res.json();
+};
+
+export const submitResponseDecision = async (
+  opportunityId: string,
+  action: 'request_meeting' | 'continue_discussion' | 'not_proceed'
+) => {
+  const res = await fetch(
+    `${API_BASE}/deal-flow/${opportunityId}/response-decision`,
+    {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ action }),
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(
+      await readWorkspaceApiError(
+        res,
+        'Unable to record the response decision.'
+      )
+    );
+  }
+
+  return res.json();
+};
+
+export const respondToMeetingInvitation = async (
+  opportunityId: string,
+  action: 'accept' | 'suggest_time' | 'decline',
+  data: {
+    proposed_start_at?: string;
+    proposed_end_at?: string;
+    proposed_timezone?: string;
+  } = {}
+) => {
+  const res = await fetch(
+    `${API_BASE}/opportunities/${opportunityId}/meeting-invitation/respond`,
+    {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        action,
+        ...data,
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(
+      await readWorkspaceApiError(
+        res,
+        'Unable to respond to the meeting invitation.'
+      )
+    );
+  }
+
   return res.json();
 };
 
@@ -789,9 +1086,9 @@ export const sendInvestorInvitation = async (
   }
 
   const response = await fetch(
-    `/api/admin/opportunities/${encodeURIComponent(
+    `/api/opportunities/${encodeURIComponent(
       opportunityId
-    )}/send-investor-invitation`,
+    )}/initiate-investor-outreach`,
     {
       method: 'POST',
       headers: {
